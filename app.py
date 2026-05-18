@@ -56,14 +56,14 @@ async def process_support(callback_query: types.CallbackQuery):
 async def process_rules(callback_query: types.CallbackQuery):
     await callback_query.answer()
     
-    # Поставил одинаковые ID кастомных папок (6039630677182254664) на оба пункта
+    # ИЗМЕНЕНИЕ: Теги <tg-emoji> теперь стоят ПЕРЕД тегами ссылок <a>, а не внутри них.
+    # Также возвращен и исправлен русский текст для Политики конфиденциальности.
     text = (
         "<tg-emoji emoji-id=\"6032636795387121097\">🛡</tg-emoji> Перед использованием бота, пожалуйста прочтите правила указанные ниже <tg-emoji emoji-id=\"5963087934696459905\">⬇️</tg-emoji>\n\n"
-        "<a href=\"https://telegra.ph\"><tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> Пользовательское соглашение</a>\n"
-        "<a href=\"https://telegra.ph\"><tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> Politika konfidencialnosti</a>"
+        "<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> <a href=\"https://telegra.ph\">Пользовательское соглашение</a>\n"
+        "<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> <a href=\"https://telegra.ph\">Политика конфиденциальности</a>"
     )
     
-    # Добавлен параметр link_preview_options, который убирает сниппет ссылки и чинит кастомные эмодзи
     await callback_query.message.edit_text(
         text, 
         reply_markup=get_main_button(), 
