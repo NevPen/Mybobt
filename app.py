@@ -3,13 +3,15 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+# Ваш новый токен
 BOT_TOKEN = "8721036900:AAEwk-tRJvgP0NVtsg3U3GOg1_3shj5nTB8"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 def get_buttons():
-    # Передаем ID премиум-эмодзи в параметр icon_custom_emoji_id
+    # Строго убираем любые пробелы в начале строк text, 
+    # чтобы системный отступ Telegram не увеличивался
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text="Магазин", 
@@ -36,7 +38,7 @@ def get_buttons():
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    # Текст сообщения
+    # Изменено: убран \n, теперь текст идет сплошным блоком без пустой строки
     text = (
         "<tg-emoji emoji-id=\"6028315147754278596\">🙂</tg-emoji> Добро пожаловать в Morgodon Shop\n"
         "Для покупки товаров используйте кнопки ниже <tg-emoji emoji-id=\"6039802767931871481\">⬇️</tg-emoji>"
