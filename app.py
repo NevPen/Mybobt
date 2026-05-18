@@ -58,7 +58,7 @@ def get_admin_inline_buttons(user_id: int):
 @dp.callback_query(lambda callback: callback.from_user.id in banned_users)
 async def process_banned(event):
     if isinstance(event, types.Message):
-        await event.answer("<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>Вы заблокированы администратором<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>", parse_mode="HTML")
+        await event.answer("<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>Вы заблокированы администратором<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>\n<tg-emoji emoji-id=\"6039422865189638057\">📣</tg-emoji>Причина: пидор", parse_mode="HTML")
     elif isinstance(event, types.CallbackQuery):
         await event.answer("Доступ ограничен.", show_alert=True)
 
@@ -152,14 +152,15 @@ async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext
     if callback_query.from_user.id != ADMIN_ID:
         return await callback_query.answer("Доступ запрещен.")
     
-    target_user_id = int(callback_query.data.split('_'))
+    # ИСПРАВЛЕНО: добавлен индекс [1] для корректного среза ID из callback_data
+    target_user_id = int(callback_query.data.split('_')[1])
     
     await state.update_data(ban_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_ban_reason)
     
     await callback_query.answer()
     await callback_query.message.reply(
-        "<tg-emoji emoji-id=\"5850309953293653168\">⚙️</tg-emoji>Напишите причине блокировки:", 
+        "<tg-emoji emoji-id=\"5850309953293653168\">⚙️</tg-emoji>Напишите причину блокировки:", 
         parse_mode="HTML"
     )
 
@@ -190,14 +191,13 @@ async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMConte
     if callback_query.from_user.id != ADMIN_ID:
         return await callback_query.answer("Доступ запрещен.")
     
-    target_user_id = int(callback_query.data.split('_'))
+    # ИСПРАВЛЕНО: добавлен индекс [1] для корректного среза ID из callback_data
+    target_user_id = int(callback_query.data.split('_')[1])
     
     await state.update_data(reply_to_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_admin_reply)
     
     await callback_query.answer()
-    
-    # Исправлено: добавлено двоеточие в конец шаблона по ТЗ
     await callback_query.message.reply(
         "<tg-emoji emoji-id=\"6039404727542747508\">⌨️</tg-emoji>Напишите ответ пользователю:",
         parse_mode="HTML"
