@@ -56,12 +56,10 @@ async def process_support(callback_query: types.CallbackQuery):
 async def process_rules(callback_query: types.CallbackQuery):
     await callback_query.answer()
     
-    # ИЗМЕНЕНИЕ: Теги <tg-emoji> теперь стоят ПЕРЕД тегами ссылок <a>, а не внутри них.
-    # Также возвращен и исправлен русский текст для Политики конфиденциальности.
     text = (
         "<tg-emoji emoji-id=\"6032636795387121097\">🛡</tg-emoji> Перед использованием бота, пожалуйста прочтите правила указанные ниже <tg-emoji emoji-id=\"5963087934696459905\">⬇️</tg-emoji>\n\n"
-        "<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> <a href=\"https://telegra.ph\">Пользовательское соглашение</a>\n"
-        "<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> <a href=\"https://telegra.ph\">Политика конфиденциальности</a>"
+        "<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> <a href=\"https://telegra.ph/Polzovatelskoe-soglashenie-04-01-19\">Пользовательское соглашение</a>\n"
+        "<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> <a href=\"https://telegra.ph/Politika-konfidencialnosti-04-01-26\">Политика конфиденциальности</a>"
     )
     
     await callback_query.message.edit_text(
