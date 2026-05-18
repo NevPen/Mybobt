@@ -17,8 +17,9 @@ banned_users = set()
 
 # --- СОСТОЯНИЯ (FSM) ---
 class SupportStates(StatesGroup):
-    waiting_for_topic = State()       
-    waiting_for_admin_reply = State() 
+    waiting_for_topic = State()        # Ожидание темы от пользователя
+    waiting_for_admin_reply = State()  # Ожидание ответа от админа
+    waiting_for_ban_reason = State()   # Ожидание причины бана от админа
 
 # --- ФУНКЦИИ ДЛЯ РАБОТЫ С НОМЕРАМИ ЗАЯВОК ---
 def get_current_ticket_number():
@@ -79,9 +80,10 @@ def get_admin_inline_buttons(user_id: int):
 @dp.callback_query(lambda callback: callback.from_user.id in banned_users)
 async def process_banned(event):
     if isinstance(event, types.Message):
-        await event.answer("Вы заблокированы в техподдержке магазина.")
+        # На случай если причина еще не была введена, выводим общую заглушку
+        await event.answer("<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>Вы заблокированы администратором<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>", parse_mode="HTML")
     elif isinstance(event, types.CallbackQuery):
-        await event.answer("Вы заблокированы администрацией.", show_alert=True)
+        await event.answer("Доступ ограничен.", show_alert=True)
 
 # --- КОМАНДА /START ---
 @dp.message(Command("start"))
@@ -166,16 +168,50 @@ async def process_main(callback_query: types.CallbackQuery, state: FSMContext):
 
 # --- ПАНЕЛЬ УПРАВЛЕНИЯ ДЛЯ АДМИНИСТРАТОРА ---
 
+# Изменен обработчик нажатия кнопки "Заблокировать"
 @dp.callback_query(lambda c: c.data.startswith('ban_'))
-async def admin_ban_user(callback_query: types.CallbackQuery):
+async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID:
         return await callback_query.answer("Доступ запрещен.")
     
     target_user_id = int(callback_query.data.split('_')[1])
+    
+    # Запоминаем ID пользователя для последующей блокировки
+    await state.update_data(ban_user_id=target_user_id)
+    await state.set_state(SupportStates.waiting_for_ban_reason)
+    
+    await callback_query.answer()
+    
+    # Текст запроса причины строго по вашему ТЗ
+    await callback_query.message.reply(
+        "<tg-emoji emoji-id=\"5850309953293653168\">⚙️</tg-emoji>Напишите причину блокировки:", 
+        parse_mode="HTML"
+    )
+
+# Прием текста причины блокировки от админа
+@dp.message(SupportStates.waiting_for_ban_reason)
+async def admin_ban_reason_received(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    data = await state.get_data()
+    target_user_id = data.get("ban_user_id")
+    
+    # Добавляем пользователя в бан-лист
     banned_users.add(target_user_id)
     
-    await callback_query.answer("Пользователь заблокирован!", show_alert=True)
-    await callback_query.message.reply(f"❌ Пользователь <code>{target_user_id}</code> успешно внесён в чёрный список.", parse_mode="HTML")
+    # Шаблон сообщения о бане для пользователя по вашему ТЗ
+    text_ban = (
+        "<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>Вы заблокированы администратором<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>\n"
+        f"<tg-emoji emoji-id=\"6039422865189638057\">📣</tg-emoji>Причина: {message.text}"
+    )
+    
+    try:
+        await bot.send_message(chat_id=target_user_id, text=text_ban, parse_mode="HTML")
+    except Exception as e:
+        print(f"Не удалось отправить карточку бана пользователю: {e}")
+        
+    await state.clear()
 
 @dp.callback_query(lambda c: c.data.startswith('reply_'))
 async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMContext):
@@ -190,7 +226,6 @@ async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMConte
     await callback_query.answer()
     await callback_query.message.reply("✍️ Напишите ответное сообщение для пользователя:")
 
-# --- ОТПРАВКА ОТВЕТА ПОЛЬЗОВАТЕЛЮ ---
 @dp.message(SupportStates.waiting_for_admin_reply)
 async def admin_send_reply_message(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
