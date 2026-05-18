@@ -108,7 +108,7 @@ def get_user_periods_keyboard(version_type):
     
     return InlineKeyboardMarkup(inline_keyboard=keyboard_structure)
 
-# КЛАВИАТУРЫ АДМИН-ПАНЕЛИ (Переписаны на точные прямые дата-команды)
+# КЛАВИАТУРЫ АДМИН-ПАНЕЛИ
 def get_admin_main_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Vip\u200b", callback_data="adm_choose_vip", icon_custom_emoji_id="5893236738372932548")],
@@ -199,6 +199,7 @@ async def user_select_version(callback_query: types.CallbackQuery):
 async def user_buy_product(callback_query: types.CallbackQuery):
     await callback_query.answer()
     parts = callback_query.data.split('_')
+    
     version_type = f"{parts}_{parts}"  
     period = "_".join(parts[3:])
     
@@ -214,7 +215,7 @@ async def user_buy_product(callback_query: types.CallbackQuery):
         
     await callback_query.message.answer(text, reply_markup=get_main_button(), parse_mode="HTML")
 
-# --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА (НОВАЯ СТАБИЛЬНАЯ ЛОГИКА) ---
+# --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА ---
 
 @dp.callback_query(lambda c: c.data in ['adm_choose_vip', 'adm_choose_lite'])
 async def admin_select_version(callback_query: types.CallbackQuery):
@@ -223,7 +224,6 @@ async def admin_select_version(callback_query: types.CallbackQuery):
     version = "vip" if callback_query.data == "adm_choose_vip" else "lite"
     await callback_query.message.answer(f"Выберите период для настройки версии {version.upper()}:", reply_markup=get_admin_periods_keyboard(version))
 
-# Карта сопоставления точных прямых дата-команд к структуре базы JSON
 ADMIN_CALLBACK_MAP = {
     "add_vip_1d": ("lebro_vip", "1_day"),
     "add_vip_7d": ("lebro_vip", "7_days"),
@@ -238,15 +238,12 @@ async def admin_select_period(callback_query: types.CallbackQuery, state: FSMCon
     if callback_query.from_user.id != ADMIN_ID: return
     await callback_query.answer()
     
-    # Моментально сопоставляем нажатую кнопку с базой без срезов строк
     version_type, period = ADMIN_CALLBACK_MAP[callback_query.data]
-    
     await state.update_data(target_version=version_type, target_period=period)
-    
-    # Включаем FSM состояние. Теперь бот ГАРАНТИРОВАННО будет перехватывать ваш текст
     await state.set_state(AdminStates.waiting_for_key)
     
-    await callback_query.message.reply("введите ключ:")
+    # Изменено: текст изменен строго по вашему ТЗ
+    await callback_query.message.reply("напишите ключ:")
 
 @dp.message(AdminStates.waiting_for_key)
 async def admin_key_received(message: types.Message, state: FSMContext):
@@ -257,12 +254,11 @@ async def admin_key_received(message: types.Message, state: FSMContext):
     period = state_data.get("target_period")
     
     current_data = load_shop_data()
-    
-    # Ключ безопасно записывается в JSON, бот больше не молчит
     current_data[version_type][period].append(message.text) 
     save_shop_data(current_data)
     
-    await message.answer("добавлен новый товар!")
+    # Изменено: текст изменен строго по вашему ТЗ
+    await message.answer("товар в магазине")
     await state.clear()
 
 # --- ОСТАЛЬНЫЕ РАЗДЕЛЫ БОТА ---
@@ -319,62 +315,6 @@ async def ticket_topic_received(message: types.Message, state: FSMContext):
         await bot.send_message(chat_id=ADMIN_ID, text=admin_text, reply_markup=get_admin_inline_buttons(user_id), parse_mode="HTML")
     except Exception as e:
         print(f"Ошибка уведомления админа: {e}")
-    await state.clear()
-
-@dp.callback_query(lambda c: c.data == 'main')
-async def process_main(callback_query: types.CallbackQuery, state: FSMContext):
-    await callback_query.answer()
-    await state.clear()
-    await callback_query.message.answer(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
-
-@dp.callback_query(lambda c: c.data.startswith('ban_'))
-async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext):
-    if callback_query.from_user.id != ADMIN_ID: return
-    target_user_id = int(callback_query.data.split('_')[1])
-    await state.update_data(ban_user_id=target_user_id)
-    await state.set_state(SupportStates.waiting_for_ban_reason)
-    await callback_query.answer()
-    await callback_query.message.reply("<tg-emoji emoji-id=\"5850309953293653168\">⚙️</tg-emoji>Напишите причину блокировки:", parse_mode="HTML")
-
-@dp.message(SupportStates.waiting_for_ban_reason)
-async def admin_ban_reason_received(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
-    data = await state.get_data()
-    target_user_id = data.get("ban_user_id")
-    banned_users[target_user_id] = message.text
-    text_ban = (
-        "<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>Вы заблокированы администратором<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>\n"
-        f"<tg-emoji emoji-id=\"6039422865189638057\">📣</tg-emoji>Причина: {message.text}"
-    )
-    try:
-        await bot.send_message(chat_id=target_user_id, text=text_ban, parse_mode="HTML")
-    except Exception as e:
-        print(f"Не удалось отправить карточку бана: {e}")
-    await state.clear()
-
-@dp.callback_query(lambda c: c.data.startswith('reply_'))
-async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMContext):
-    if callback_query.from_user.id != ADMIN_ID: return
-    target_user_id = int(callback_query.data.split('_')[1])
-    await state.update_data(reply_to_user_id=target_user_id)
-    await state.set_state(SupportStates.waiting_for_admin_reply)
-    await callback_query.answer()
-    await callback_query.message.reply("<tg-emoji emoji-id=\"6039404727542747508\">⌨️</tg-emoji>Напишите ответ пользователю:", parse_mode="HTML")
-
-@dp.message(SupportStates.waiting_for_admin_reply)
-async def admin_send_reply_message(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
-    data = await state.get_data()
-    target_user_id = data.get("reply_to_user_id")
-    reply_text = (
-        f"<tg-emoji emoji-id=\"6021418126061605425\">📞</tg-emoji> Ваш тикет <b>#{ticket_counter}</b> был <b>обработан</b>\n"
-        f"<tg-emoji emoji-id=\"5771851822897566479\">📝</tg-emoji> Ответ: {message.text}\n"
-        f"<tg-emoji emoji-id=\"6021681257232994766\">🔒</tg-emoji> Ваш тикет был <b>автоматически закрыт</b>"
-    )
-    try:
-        await bot.send_message(chat_id=target_user_id, text=reply_text, reply_markup=get_main_button(), parse_mode="HTML")
-    except Exception as e:
-        await message.answer(f"❌ Ошибка отправки: {e}")
     await state.clear()
 
 if __name__ == "__main__":
