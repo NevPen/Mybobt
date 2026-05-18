@@ -17,7 +17,7 @@ dp = Dispatcher()
 banned_users = {}
 ticket_counter = 0
 
-# --- РАБОТА С БАЗОЙ ДАННЫХ ТОВАРОВ (JSON) ---
+# --- ПРЯМАЯ РАБОТА С ФАЙЛОМ БАЗЫ ДАННЫХ ---
 DATA_FILE = "shop_data.json"
 
 def load_shop_data():
@@ -79,7 +79,6 @@ def get_lebro_versions():
         [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
-# ИСПРАВЛЕНО: Кнопки периодов выстраиваются строго по одной горизонтальной линии
 def get_user_periods_keyboard(version_type):
     current_data = load_shop_data()
     version_items = current_data.get(version_type, {})
@@ -96,7 +95,6 @@ def get_user_periods_keyboard(version_type):
         count = len(keys_list)
         if count > 0:  
             button_text = f"{labels[period]} ({count})\u200b"
-            # Все подходящие кнопки добавляются в один плоский список buttons_row
             buttons_row.append(InlineKeyboardButton(
                 text=button_text, 
                 callback_data=f"buy_{version_type}_{period}",
@@ -105,7 +103,6 @@ def get_user_periods_keyboard(version_type):
             
     keyboard_structure = []
     if buttons_row:
-        # Помещаем список кнопок как ОДНУ строку
         keyboard_structure.append(buttons_row)
     keyboard_structure.append([InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")])
     
@@ -172,15 +169,15 @@ async def start(message: types.Message, state: FSMContext):
 
 @dp.callback_query(lambda c: c.data == 'shop')
 async def process_shop(callback_query: types.CallbackQuery):
-    await callback_query.answer()
+    await callback_query.answer()  
     text = "<tg-emoji emoji-id=\"5870563425628721113\">🛍</tg-emoji> <b>Выберите нужный товар</b>"
-    await callback_query.message.edit_text(text, reply_markup=get_shop_categories(), parse_mode="HTML")
+    await callback_query.message.answer(text, reply_markup=get_shop_categories(), parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data == 'prod_lebro')
 async def process_lebro_cheat(callback_query: types.CallbackQuery):
     await callback_query.answer()
     text = "<b>Выберите версию Lebro Cheat</b>"
-    await callback_query.message.edit_text(text, reply_markup=get_lebro_versions(), parse_mode="HTML")
+    await callback_query.message.answer(text, reply_markup=get_lebro_versions(), parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data in ['ver_lebro_lite', 'ver_lebro_vip'])
 async def user_select_version(callback_query: types.CallbackQuery):
@@ -189,24 +186,20 @@ async def user_select_version(callback_query: types.CallbackQuery):
     
     current_data = load_shop_data()
     version_dict = current_data.get(version_type, {})
-    
     has_items = any(len(keys) > 0 for keys in version_dict.values())
     
     if not has_items:
         text = "<tg-emoji emoji-id=\"5920046907782074235\">📝</tg-emoji>Нет в наличии"
-        await callback_query.message.edit_text(text, reply_markup=get_main_button(), parse_mode="HTML")
+        await callback_query.message.answer(text, reply_markup=get_main_button(), parse_mode="HTML")
     else:
         text = "<b>Выберите период подписки:</b>"
-        await callback_query.message.edit_text(text, reply_markup=get_user_periods_keyboard(version_type), parse_mode="HTML")
+        await callback_query.message.answer(text, reply_markup=get_user_periods_keyboard(version_type), parse_mode="HTML")
 
-# Оформление покупки товара
 @dp.callback_query(lambda c: c.data.startswith('buy_'))
 async def user_buy_product(callback_query: types.CallbackQuery):
     await callback_query.answer()
     parts = callback_query.data.split('_')
-    version_type = f"{parts[1]}_{parts[2]}"  # Получаем lebro_lite или lebro_vip
-    
-    # Склеиваем период подписки из оставшихся частей callback_data
+    version_type = f"{parts[1]}_{parts[2]}"  
     period = "_".join(parts[3:])
     
     current_data = load_shop_data()
@@ -214,30 +207,31 @@ async def user_buy_product(callback_query: types.CallbackQuery):
     
     if keys_list:
         purchased_key = keys_list.pop(0)  
-        save_shop_data(current_data)      
+        save_shop_data(current_data)  
         text = f"🎉 <b>Успешная покупка!</b>\n\nВаш ключ: <code>{purchased_key}</code>"
     else:
         text = "<tg-emoji emoji-id=\"5920046907782074235\">📝</tg-emoji>Извините, этот товар только что закончился."
         
-    await callback_query.message.edit_text(text, reply_markup=get_main_button(), parse_mode="HTML")
+    await callback_query.message.answer(text, reply_markup=get_main_button(), parse_mode="HTML")
 
-# --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА ---
+# --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА (ИСПРАВЛЕНО!) ---
 
 @dp.callback_query(lambda c: c.data in ['adm_choose_vip', 'adm_choose_lite'])
 async def admin_select_version(callback_query: types.CallbackQuery):
     if callback_query.from_user.id != ADMIN_ID: return
     await callback_query.answer()
     version = "vip" if callback_query.data == "adm_choose_vip" else "lite"
-    await callback_query.message.edit_text(f"Выберите период для настройки версии {version.upper()}:", reply_markup=get_admin_periods_keyboard(version))
+    await callback_query.message.answer(f"Выберите период для настройки версии {version.upper()}:", reply_markup=get_admin_periods_keyboard(version))
 
 @dp.callback_query(lambda c: c.data.startswith('add_lebro_'))
 async def admin_select_period(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
     await callback_query.answer()
     
-    parts = callback_query.data.replace("add_", "").split("_")
-    version_type = f"{parts[0]}_{parts[1]}"  
-    period = "_".join(parts[2:])
+    # ИСПРАВЛЕНО: точный срез строк для формирования легитимных ключей JSON структуры
+    parts = callback_query.data.split('_')
+    version_type = f"lebro_{parts[2]}"  # соберет строго "lebro_vip" или "lebro_lite"
+    period = "_".join(parts[3:])        # соберет строго "1_day", "7_days", "30_days" или "forever"
     
     await state.update_data(target_version=version_type, target_period=period)
     await state.set_state(AdminStates.waiting_for_key)
@@ -253,10 +247,15 @@ async def admin_key_received(message: types.Message, state: FSMContext):
     period = state_data.get("target_period")
     
     current_data = load_shop_data()
-    current_data[version_type][period].append(message.text) 
-    save_shop_data(current_data)
     
-    await message.answer("добавлен новый товар!")
+    # ИСПРАВЛЕНО: Запись теперь попадает строго в верные разделы словаря
+    if version_type in current_data and period in current_data[version_type]:
+        current_data[version_type][period].append(message.text) 
+        save_shop_data(current_data)
+        await message.answer("добавлен новый товар!")
+    else:
+        await message.answer("❌ Произошла ошибка внутренней структуры категорий.")
+        
     await state.clear()
 
 # --- ОСТАЛЬНЫЕ РАЗДЕЛЫ БОТА ---
@@ -265,7 +264,7 @@ async def admin_key_received(message: types.Message, state: FSMContext):
 async def process_profile(callback_query: types.CallbackQuery):
     await callback_query.answer()
     text = "<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji> Это ваш Профиль. Ваш баланс: 0 руб."
-    await callback_query.message.edit_text(text, reply_markup=get_main_button(), parse_mode="HTML")
+    await callback_query.message.answer(text, reply_markup=get_main_button(), parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data == 'rules')
 async def process_rules(callback_query: types.CallbackQuery):
@@ -275,7 +274,7 @@ async def process_rules(callback_query: types.CallbackQuery):
         "<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> <a href=\"https://telegra.ph\">Пользовательское соглашение</a>\n"
         "<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> <a href=\"https://telegra.ph\">Политика конфиденциальности</a>"
     )
-    await callback_query.message.edit_text(text, reply_markup=get_main_button(), parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+    await callback_query.message.answer(text, reply_markup=get_main_button(), parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
 
 @dp.callback_query(lambda c: c.data == 'support')
 async def process_support(callback_query: types.CallbackQuery, state: FSMContext):
@@ -284,7 +283,7 @@ async def process_support(callback_query: types.CallbackQuery, state: FSMContext
         "<tg-emoji emoji-id=\"6021418126061605425\">📞</tg-emoji> <b>Техническая поддержка</b>\n\n"
         "<tg-emoji emoji-id=\"6039450962865688331\">📝</tg-emoji> Введите <b>тему вашего обращения</b>"
     )
-    await callback_query.message.edit_text(text, reply_markup=None, parse_mode="HTML")
+    await callback_query.message.answer(text, reply_markup=None, parse_mode="HTML")
     await state.set_state(SupportStates.waiting_for_topic)
 
 @dp.message(SupportStates.waiting_for_topic)
@@ -319,62 +318,7 @@ async def ticket_topic_received(message: types.Message, state: FSMContext):
 async def process_main(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.answer()
     await state.clear()
-    await callback_query.message.edit_text(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
-
-@dp.callback_query(lambda c: c.data.startswith('ban_'))
-async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext):
-    if callback_query.from_user.id != ADMIN_ID: return
-    target_user_id = int(callback_query.data.split('_')[1])
-    await state.update_data(ban_user_id=target_user_id)
-    await state.set_state(SupportStates.waiting_for_ban_reason)
-    await callback_query.answer()
-    await callback_query.message.reply("<tg-emoji emoji-id=\"5850309953293653168\">⚙️</tg-emoji>Напишите причину блокировки:", parse_mode="HTML")
-
-@dp.message(SupportStates.waiting_for_ban_reason)
-async def admin_ban_reason_received(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
-    data = await state.get_data()
-    target_user_id = data.get("ban_user_id")
-    banned_users[target_user_id] = message.text
-    text_ban = (
-        "<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>Вы заблокированы администратором<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>\n"
-        f"<tg-emoji emoji-id=\"6039422865189638057\">📣</tg-emoji>Причина: {message.text}"
-    )
-    try:
-        await bot.send_message(chat_id=target_user_id, text=text_ban, parse_mode="HTML")
-    except Exception as e:
-        print(f"Не удалось отправить карточку бана: {e}")
-    await state.clear()
-
-@dp.callback_query(lambda c: c.data.startswith('reply_'))
-async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMContext):
-    if callback_query.from_user.id != ADMIN_ID: return
-    target_user_id = int(callback_query.data.split('_')[1])
-    await state.update_data(reply_to_user_id=target_user_id)
-    await state.set_state(SupportStates.waiting_for_admin_reply)
-    await callback_query.answer()
-    await callback_query.message.reply("<tg-emoji emoji-id=\"6039404727542747508\">⌨️</tg-emoji>Напишите ответ пользователю:", parse_mode="HTML")
-
-@dp.message(SupportStates.waiting_for_admin_reply)
-async def admin_send_reply_message(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
-    data = await state.get_data()
-    target_user_id = data.get("reply_to_user_id")
-    reply_text = (
-        f"<tg-emoji emoji-id=\"6021418126061605425\">📞</tg-emoji> Ваш тикет <b>#{ticket_counter}</b> был <b>обработан</b>\n"
-        f"<tg-emoji emoji-id=\"5771851822897566479\">📝</tg-emoji> Ответ: {message.text}\n"
-        f"<tg-emoji emoji-id=\"6021681257232994766\">🔒</tg-emoji> Ваш тикет был <b>автоматически закрыт</b>"
-    )
-    try:
-        await bot.send_message(chat_id=target_user_id, text=reply_text, reply_markup=get_main_button(), parse_mode="HTML")
-    except Exception as e:
-        await message.answer(f"❌ Ошибка отправки: {e}")
-    await state.clear()
-
-# --- СТАРТ БОТА ---
-async def main():
-    print("Бот запущен")
-    await dp.start_polling(bot)
+    await callback_query.message.answer(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
 
 if __name__ == "__main__":
     async def main_runner():
