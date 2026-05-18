@@ -1,7 +1,7 @@
 import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LinkPreviewOptions
 
 BOT_TOKEN = "8721036900:AAEwk-tRJvgP0NVtsg3U3GOg1_3shj5nTB8"
 
@@ -55,13 +55,21 @@ async def process_support(callback_query: types.CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'rules')
 async def process_rules(callback_query: types.CallbackQuery):
     await callback_query.answer()
-    # Заменен ID эмодзи для Политики конфиденциальности на щит с замочком
+    
+    # Поставил одинаковые ID кастомных папок (6039630677182254664) на оба пункта
     text = (
         "<tg-emoji emoji-id=\"6032636795387121097\">🛡</tg-emoji> Перед использованием бота, пожалуйста прочтите правила указанные ниже <tg-emoji emoji-id=\"5963087934696459905\">⬇️</tg-emoji>\n\n"
         "<a href=\"https://telegra.ph\"><tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> Пользовательское соглашение</a>\n"
-        "<a href=\"https://telegra.ph\"><tg-emoji emoji-id=\"6032483861214972517\">🔐</tg-emoji> Политика конфиденциальности</a>"
+        "<a href=\"https://telegra.ph\"><tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> Politika konfidencialnosti</a>"
     )
-    await callback_query.message.edit_text(text, reply_markup=get_main_button(), parse_mode="HTML")
+    
+    # Добавлен параметр link_preview_options, который убирает сниппет ссылки и чинит кастомные эмодзи
+    await callback_query.message.edit_text(
+        text, 
+        reply_markup=get_main_button(), 
+        parse_mode="HTML",
+        link_preview_options=LinkPreviewOptions(is_disabled=True)
+    )
 
 @dp.callback_query(lambda c: c.data == 'main')
 async def process_main(callback_query: types.CallbackQuery):
