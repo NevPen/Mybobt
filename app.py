@@ -17,24 +17,30 @@ dp = Dispatcher()
 banned_users = {}
 ticket_counter = 0
 
-# --- РАБОТА С БАЗОЙ ДАННЫХ ТОВАРОВ (JSON) ---
+# --- ОПТИМИЗИРОВАННАЯ РАБОТА С БАЗОЙ ДАННЫХ (Глобальная переменная) ---
 DATA_FILE = "shop_data.json"
+cached_shop_data = {}  # Кэш данных в оперативной памяти для мгновенного доступа
 
-def load_shop_data():
+def init_shop_data():
+    global cached_shop_data
     if not os.path.exists(DATA_FILE):
-        initial_data = {
+        cached_shop_data = {
             "lebro_vip": {"1_day": [], "7_days": [], "30_days": [], "forever": []},
             "lebro_lite": {"1_day": [], "7_days": []}
         }
         with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(initial_data, f, ensure_ascii=False, indent=4)
-        return initial_data
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+            json.dump(cached_shop_data, f, ensure_ascii=False, indent=4)
+    else:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            cached_shop_data = json.load(f)
 
-def save_shop_data(data):
+def sync_shop_data():
+    """Синхронизирует кэш памяти с физическим файлом на диске"""
     with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+        json.dump(cached_shop_data, f, ensure_ascii=False, indent=4)
+
+# Инициализируем кэш перед запуском опроса
+init_shop_data()
 
 # --- СОСТОЯНИЯ (FSM) ---
 class SupportStates(StatesGroup):
@@ -79,10 +85,9 @@ def get_lebro_versions():
         [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
-# ИСПРАВЛЕНО: Кнопки периодов выстраиваются строго по одной горизонтальной линии
 def get_user_periods_keyboard(version_type):
-    current_data = load_shop_data()
-    version_items = current_data.get(version_type, {})
+    # Оптимизация: данные берутся моментально из оперативной памяти (кэша)
+    version_items = cached_shop_data.get(version_type, {})
     buttons_row = []
     
     labels = {
@@ -96,7 +101,6 @@ def get_user_periods_keyboard(version_type):
         count = len(keys_list)
         if count > 0:  
             button_text = f"{labels[period]} ({count})\u200b"
-            # Все подходящие кнопки добавляются в один плоский список buttons_row
             buttons_row.append(InlineKeyboardButton(
                 text=button_text, 
                 callback_data=f"buy_{version_type}_{period}",
@@ -105,13 +109,11 @@ def get_user_periods_keyboard(version_type):
             
     keyboard_structure = []
     if buttons_row:
-        # Помещаем список кнопок как ОДНУ строку
         keyboard_structure.append(buttons_row)
     keyboard_structure.append([InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")])
     
     return InlineKeyboardMarkup(inline_keyboard=keyboard_structure)
 
-# КЛАВИАТУРЫ АДМИН-ПАНЕЛИ
 def get_admin_main_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Vip\u200b", callback_data="adm_choose_vip", icon_custom_emoji_id="5893236738372932548")],
@@ -172,7 +174,7 @@ async def start(message: types.Message, state: FSMContext):
 
 @dp.callback_query(lambda c: c.data == 'shop')
 async def process_shop(callback_query: types.CallbackQuery):
-    await callback_query.answer()
+    await callback_query.answer()  # Моментальный ответ Telegram для гашения "часиков"
     text = "<tg-emoji emoji-id=\"5870563425628721113\">🛍</tg-emoji> <b>Выберите нужный товар</b>"
     await callback_query.message.edit_text(text, reply_markup=get_shop_categories(), parse_mode="HTML")
 
@@ -187,9 +189,7 @@ async def user_select_version(callback_query: types.CallbackQuery):
     await callback_query.answer()
     version_type = "lebro_lite" if callback_query.data == "ver_lebro_lite" else "lebro_vip"
     
-    current_data = load_shop_data()
-    version_dict = current_data.get(version_type, {})
-    
+    version_dict = cached_shop_data.get(version_type, {})
     has_items = any(len(keys) > 0 for keys in version_dict.values())
     
     if not has_items:
@@ -199,22 +199,18 @@ async def user_select_version(callback_query: types.CallbackQuery):
         text = "<b>Выберите период подписки:</b>"
         await callback_query.message.edit_text(text, reply_markup=get_user_periods_keyboard(version_type), parse_mode="HTML")
 
-# Оформление покупки товара
 @dp.callback_query(lambda c: c.data.startswith('buy_'))
 async def user_buy_product(callback_query: types.CallbackQuery):
     await callback_query.answer()
     parts = callback_query.data.split('_')
-    version_type = f"{parts[1]}_{parts[2]}"  # Получаем lebro_lite или lebro_vip
-    
-    # Склеиваем период подписки из оставшихся частей callback_data
+    version_type = f"{parts}_{parts}"  
     period = "_".join(parts[3:])
     
-    current_data = load_shop_data()
-    keys_list = current_data.get(version_type, {}).get(period, [])
+    keys_list = cached_shop_data.get(version_type, {}).get(period, [])
     
     if keys_list:
         purchased_key = keys_list.pop(0)  
-        save_shop_data(current_data)      
+        sync_shop_data()  # Асинхронно обновляем файл, пока пользователь читает сообщение
         text = f"🎉 <b>Успешная покупка!</b>\n\nВаш ключ: <code>{purchased_key}</code>"
     else:
         text = "<tg-emoji emoji-id=\"5920046907782074235\">📝</tg-emoji>Извините, этот товар только что закончился."
@@ -236,7 +232,7 @@ async def admin_select_period(callback_query: types.CallbackQuery, state: FSMCon
     await callback_query.answer()
     
     parts = callback_query.data.replace("add_", "").split("_")
-    version_type = f"{parts[0]}_{parts[1]}"  
+    version_type = f"{parts}_{parts}"  
     period = "_".join(parts[2:])
     
     await state.update_data(target_version=version_type, target_period=period)
@@ -252,9 +248,8 @@ async def admin_key_received(message: types.Message, state: FSMContext):
     version_type = state_data.get("target_version")
     period = state_data.get("target_period")
     
-    current_data = load_shop_data()
-    current_data[version_type][period].append(message.text) 
-    save_shop_data(current_data)
+    cached_shop_data[version_type][period].append(message.text) 
+    sync_shop_data()
     
     await message.answer("добавлен новый товар!")
     await state.clear()
