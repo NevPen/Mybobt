@@ -79,7 +79,7 @@ def get_lebro_versions():
         [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
-# ДИНАМИЧЕСКИЕ КЛАВИАТУРЫ (Выводят количество товара в наличии)
+# ИСПРАВЛЕНО: Кнопки периодов выстраиваются строго по одной горизонтальной линии
 def get_user_periods_keyboard(version_type):
     current_data = load_shop_data()
     version_items = current_data.get(version_type, {})
@@ -94,9 +94,9 @@ def get_user_periods_keyboard(version_type):
     
     for period, keys_list in version_items.items():
         count = len(keys_list)
-        if count > 0:  # Показываем кнопку, только если товар есть
-            # Форматируем текст кнопки: добавляем количество товара в наличии
+        if count > 0:  
             button_text = f"{labels[period]} ({count})\u200b"
+            # Все подходящие кнопки добавляются в один плоский список buttons_row
             buttons_row.append(InlineKeyboardButton(
                 text=button_text, 
                 callback_data=f"buy_{version_type}_{period}",
@@ -105,6 +105,7 @@ def get_user_periods_keyboard(version_type):
             
     keyboard_structure = []
     if buttons_row:
+        # Помещаем список кнопок как ОДНУ строку
         keyboard_structure.append(buttons_row)
     keyboard_structure.append([InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")])
     
@@ -198,15 +199,18 @@ async def user_select_version(callback_query: types.CallbackQuery):
         text = "<b>Выберите период подписки:</b>"
         await callback_query.message.edit_text(text, reply_markup=get_user_periods_keyboard(version_type), parse_mode="HTML")
 
+# Оформление покупки товара
 @dp.callback_query(lambda c: c.data.startswith('buy_'))
 async def user_buy_product(callback_query: types.CallbackQuery):
     await callback_query.answer()
     parts = callback_query.data.split('_')
-    version_type = f"{parts[1]}_{parts[2]}"  
-    period = f"{parts[3]}_{parts[4]}" if len(parts) == 5 else parts[3]
+    version_type = f"{parts[1]}_{parts[2]}"  # Получаем lebro_lite или lebro_vip
+    
+    # Склеиваем период подписки из оставшихся частей callback_data
+    period = "_".join(parts[3:])
     
     current_data = load_shop_data()
-    keys_list = current_data[version_type][period]
+    keys_list = current_data.get(version_type, {}).get(period, [])
     
     if keys_list:
         purchased_key = keys_list.pop(0)  
@@ -233,7 +237,7 @@ async def admin_select_period(callback_query: types.CallbackQuery, state: FSMCon
     
     parts = callback_query.data.replace("add_", "").split("_")
     version_type = f"{parts[0]}_{parts[1]}"  
-    period = f"{parts[2]}_{parts[3]}" if len(parts) == 4 else parts[2]
+    period = "_".join(parts[2:])
     
     await state.update_data(target_version=version_type, target_period=period)
     await state.set_state(AdminStates.waiting_for_key)
@@ -317,15 +321,10 @@ async def process_main(callback_query: types.CallbackQuery, state: FSMContext):
     await state.clear()
     await callback_query.message.edit_text(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
 
-# --- ПАНЕЛЬ УПРАВЛЕНИЯ ДЛЯ АДМИНИСТРАТОРА (ИСПРАВЛЕНО: добавлен индекс [1]) ---
-
 @dp.callback_query(lambda c: c.data.startswith('ban_'))
 async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
-    
-    # Исправлено: берем ровно второй элемент [1] (ID пользователя) из callback_data
     target_user_id = int(callback_query.data.split('_')[1])
-    
     await state.update_data(ban_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_ban_reason)
     await callback_query.answer()
@@ -350,10 +349,7 @@ async def admin_ban_reason_received(message: types.Message, state: FSMContext):
 @dp.callback_query(lambda c: c.data.startswith('reply_'))
 async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
-    
-    # Исправлено: берем ровно второй элемент [1] (ID пользователя) из callback_data
     target_user_id = int(callback_query.data.split('_')[1])
-    
     await state.update_data(reply_to_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_admin_reply)
     await callback_query.answer()
