@@ -11,8 +11,8 @@ ADMIN_ID = 7604556074  # Ваш Telegram ID
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Множество для временного хранения заблокированных пользователей
-banned_users = set()
+# Изменено: теперь это словарь для хранения пар {user_id: "причина блокировки"}
+banned_users = {}
 
 # Глобальный счетчик тикетов (хранится в памяти и сбрасывается при перезапуске)
 ticket_counter = 0
@@ -57,8 +57,17 @@ def get_admin_inline_buttons(user_id: int):
 @dp.message(lambda message: message.from_user.id in banned_users)
 @dp.callback_query(lambda callback: callback.from_user.id in banned_users)
 async def process_banned(event):
+    user_id = event.from_user.id
+    # Достаем из словаря сохраненную причину блокировки для этого ID
+    reason = banned_users.get(user_id, "Не указана")
+    
+    text_ban = (
+        "<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>Вы заблокированы администратором<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>\n"
+        f"<tg-emoji emoji-id=\"6039422865189638057\">📣</tg-emoji>Причина: {reason}"
+    )
+    
     if isinstance(event, types.Message):
-        await event.answer("<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>Вы заблокированы администратором<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>\n<tg-emoji emoji-id=\"6039422865189638057\">📣</tg-emoji>Причина: пидор", parse_mode="HTML")
+        await event.answer(text_ban, parse_mode="HTML")
     elif isinstance(event, types.CallbackQuery):
         await event.answer("Доступ ограничен.", show_alert=True)
 
@@ -152,7 +161,6 @@ async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext
     if callback_query.from_user.id != ADMIN_ID:
         return await callback_query.answer("Доступ запрещен.")
     
-    # ИСПРАВЛЕНО: добавлен индекс [1] для корректного среза ID из callback_data
     target_user_id = int(callback_query.data.split('_')[1])
     
     await state.update_data(ban_user_id=target_user_id)
@@ -172,7 +180,8 @@ async def admin_ban_reason_received(message: types.Message, state: FSMContext):
     data = await state.get_data()
     target_user_id = data.get("ban_user_id")
     
-    banned_users.add(target_user_id)
+    # Изменено: сохраняем в словарь причину, которую вы только что ввели
+    banned_users[target_user_id] = message.text
     
     text_ban = (
         "<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>Вы заблокированы администратором<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>\n"
@@ -191,7 +200,6 @@ async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMConte
     if callback_query.from_user.id != ADMIN_ID:
         return await callback_query.answer("Доступ запрещен.")
     
-    # ИСПРАВЛЕНО: добавлен индекс [1] для корректного среза ID из callback_data
     target_user_id = int(callback_query.data.split('_')[1])
     
     await state.update_data(reply_to_user_id=target_user_id)
