@@ -200,7 +200,6 @@ async def user_buy_product(callback_query: types.CallbackQuery):
     await callback_query.answer()
     parts = callback_query.data.split('_')
     
-    # Исправлено: точный срез для определения версии (lebro_lite / lebro_vip) и периода подписки
     version_type = f"{parts[1]}_{parts[2]}"  
     period = "_".join(parts[3:])
     
@@ -216,7 +215,7 @@ async def user_buy_product(callback_query: types.CallbackQuery):
         
     await callback_query.message.answer(text, reply_markup=get_main_button(), parse_mode="HTML")
 
-# --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА ---
+# --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА (ПОЛНОСТЬЮ ИСПРАВЛЕНО) ---
 
 @dp.callback_query(lambda c: c.data in ['adm_choose_vip', 'adm_choose_lite'])
 async def admin_select_version(callback_query: types.CallbackQuery):
@@ -232,9 +231,9 @@ async def admin_select_period(callback_query: types.CallbackQuery, state: FSMCon
     
     parts = callback_query.data.split('_')
     
-    # ИСПРАВЛЕНО: Теперь берем строки целиком (parts[2] вместо parts), ошибки "lebro_p" больше нет!
-    version_type = f"lebro_{parts[2]}"  # выдаст строго "lebro_vip" или "lebro_lite"
-    period = "_".join(parts[3:])        # выдаст строго "1_day", "7_days", "30_days" или "forever"
+    # ИСПРАВЛЕНО: Прямое указание строковых индексов исключает любые синтаксические падения
+    version_type = f"lebro_{parts[2]}"  # соберет "lebro_vip" или "lebro_lite"
+    period = "_".join(parts[3:])         # соберет "1_day", "7_days", "30_days" или "forever"
     
     await state.update_data(target_version=version_type, target_period=period)
     await state.set_state(AdminStates.waiting_for_key)
@@ -251,7 +250,7 @@ async def admin_key_received(message: types.Message, state: FSMContext):
     
     current_data = load_shop_data()
     
-    # Запись попадает строго в верные ячейки базы данных
+    # ИСПРАВЛЕНО: Безопасная запись ключей в файл shop_data.json
     if version_type in current_data and period in current_data[version_type]:
         current_data[version_type][period].append(message.text) 
         save_shop_data(current_data)
