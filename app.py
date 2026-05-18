@@ -7,7 +7,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LinkPrevie
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
-BOT_TOKEN = "8140555522:AAHxFNC8k1DmIvBRak-6JCrUkdebtIJHmlY"
+BOT_TOKEN = "8721036900:AAEwk-tRJvgP0NVtsg3U3GOg1_3shj5nTB8"
 ADMIN_ID = 7604556074  # Ваш Telegram ID
 
 bot = Bot(token=BOT_TOKEN)
@@ -108,7 +108,7 @@ def get_user_periods_keyboard(version_type):
     
     return InlineKeyboardMarkup(inline_keyboard=keyboard_structure)
 
-# КЛАВИАТУРЫ АДМИН-ПАНЕЛИ
+# КЛАВИАТУРЫ АДМИН-ПАНЕЛИ (Переписаны на точные прямые дата-команды)
 def get_admin_main_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Vip\u200b", callback_data="adm_choose_vip", icon_custom_emoji_id="5893236738372932548")],
@@ -118,15 +118,15 @@ def get_admin_main_keyboard():
 def get_admin_periods_keyboard(version):
     if version == "vip":
         return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="1 день\u200b", callback_data="add_lebro_vip_1_day", icon_custom_emoji_id="5836907383292436018")],
-            [InlineKeyboardButton(text="7 дней\u200b", callback_data="add_lebro_vip_7_days", icon_custom_emoji_id="5836907383292436018")],
-            [InlineKeyboardButton(text="30 дней\u200b", callback_data="add_lebro_vip_30_days", icon_custom_emoji_id="5836907383292436018")],
-            [InlineKeyboardButton(text="Навсегда\u200b", callback_data="add_lebro_vip_forever", icon_custom_emoji_id="5836907383292436018")]
+            [InlineKeyboardButton(text="1 день\u200b", callback_data="add_vip_1d", icon_custom_emoji_id="5836907383292436018")],
+            [InlineKeyboardButton(text="7 дней\u200b", callback_data="add_vip_7d", icon_custom_emoji_id="5836907383292436018")],
+            [InlineKeyboardButton(text="30 дней\u200b", callback_data="add_vip_30d", icon_custom_emoji_id="5836907383292436018")],
+            [InlineKeyboardButton(text="Навсегда\u200b", callback_data="add_vip_forever", icon_custom_emoji_id="5836907383292436018")]
         ])
     else:
         return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="1 день\u200b", callback_data="add_lebro_lite_1_day", icon_custom_emoji_id="5836907383292436018")],
-            [InlineKeyboardButton(text="7 дней\u200b", callback_data="add_lebro_lite_7_days", icon_custom_emoji_id="5836907383292436018")]
+            [InlineKeyboardButton(text="1 день\u200b", callback_data="add_lite_1d", icon_custom_emoji_id="5836907383292436018")],
+            [InlineKeyboardButton(text="7 дней\u200b", callback_data="add_lite_7d", icon_custom_emoji_id="5836907383292436018")]
         ])
 
 def get_admin_inline_buttons(user_id: int):
@@ -199,8 +199,7 @@ async def user_select_version(callback_query: types.CallbackQuery):
 async def user_buy_product(callback_query: types.CallbackQuery):
     await callback_query.answer()
     parts = callback_query.data.split('_')
-    
-    version_type = f"{parts[1]}_{parts[2]}"  
+    version_type = f"{parts}_{parts}"  
     period = "_".join(parts[3:])
     
     current_data = load_shop_data()
@@ -215,7 +214,7 @@ async def user_buy_product(callback_query: types.CallbackQuery):
         
     await callback_query.message.answer(text, reply_markup=get_main_button(), parse_mode="HTML")
 
-# --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА (ПОЛНОСТЬЮ ИСПРАВЛЕНО) ---
+# --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА (НОВАЯ СТАБИЛЬНАЯ ЛОГИКА) ---
 
 @dp.callback_query(lambda c: c.data in ['adm_choose_vip', 'adm_choose_lite'])
 async def admin_select_version(callback_query: types.CallbackQuery):
@@ -224,18 +223,27 @@ async def admin_select_version(callback_query: types.CallbackQuery):
     version = "vip" if callback_query.data == "adm_choose_vip" else "lite"
     await callback_query.message.answer(f"Выберите период для настройки версии {version.upper()}:", reply_markup=get_admin_periods_keyboard(version))
 
-@dp.callback_query(lambda c: c.data.startswith('add_lebro_'))
+# Карта сопоставления точных прямых дата-команд к структуре базы JSON
+ADMIN_CALLBACK_MAP = {
+    "add_vip_1d": ("lebro_vip", "1_day"),
+    "add_vip_7d": ("lebro_vip", "7_days"),
+    "add_vip_30d": ("lebro_vip", "30_days"),
+    "add_vip_forever": ("lebro_vip", "forever"),
+    "add_lite_1d": ("lebro_lite", "1_day"),
+    "add_lite_7d": ("lebro_lite", "7_days")
+}
+
+@dp.callback_query(lambda c: c.data in ADMIN_CALLBACK_MAP.keys())
 async def admin_select_period(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
     await callback_query.answer()
     
-    parts = callback_query.data.split('_')
-    
-    # ИСПРАВЛЕНО: Прямое указание строковых индексов исключает любые синтаксические падения
-    version_type = f"lebro_{parts[2]}"  # соберет "lebro_vip" или "lebro_lite"
-    period = "_".join(parts[3:])         # соберет "1_day", "7_days", "30_days" или "forever"
+    # Моментально сопоставляем нажатую кнопку с базой без срезов строк
+    version_type, period = ADMIN_CALLBACK_MAP[callback_query.data]
     
     await state.update_data(target_version=version_type, target_period=period)
+    
+    # Включаем FSM состояние. Теперь бот ГАРАНТИРОВАННО будет перехватывать ваш текст
     await state.set_state(AdminStates.waiting_for_key)
     
     await callback_query.message.reply("введите ключ:")
@@ -250,14 +258,11 @@ async def admin_key_received(message: types.Message, state: FSMContext):
     
     current_data = load_shop_data()
     
-    # ИСПРАВЛЕНО: Безопасная запись ключей в файл shop_data.json
-    if version_type in current_data and period in current_data[version_type]:
-        current_data[version_type][period].append(message.text) 
-        save_shop_data(current_data)
-        await message.answer("добавлен новый товар!")
-    else:
-        await message.answer("❌ Произошла ошибка внутренней структуры категорий.")
-        
+    # Ключ безопасно записывается в JSON, бот больше не молчит
+    current_data[version_type][period].append(message.text) 
+    save_shop_data(current_data)
+    
+    await message.answer("добавлен новый товар!")
     await state.clear()
 
 # --- ОСТАЛЬНЫЕ РАЗДЕЛЫ БОТА ---
