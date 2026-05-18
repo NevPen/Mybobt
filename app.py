@@ -159,7 +159,7 @@ async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext
     
     await callback_query.answer()
     await callback_query.message.reply(
-        "<tg-emoji emoji-id=\"5850309953293653168\">⚙️</tg-emoji>Напишите причину блокировки:", 
+        "<tg-emoji emoji-id=\"5850309953293653168\">⚙️</tg-emoji>Напишите причине блокировки:", 
         parse_mode="HTML"
     )
 
@@ -197,9 +197,9 @@ async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMConte
     
     await callback_query.answer()
     
-    # Добавлен запрос ответа на тикет строго по вашему ТЗ
+    # Исправлено: добавлено двоеточие в конец шаблона по ТЗ
     await callback_query.message.reply(
-        "<tg-emoji emoji-id=\"6039404727542747508\">⌨️</tg-emoji>Напишите ответ пользователю",
+        "<tg-emoji emoji-id=\"6039404727542747508\">⌨️</tg-emoji>Напишите ответ пользователю:",
         parse_mode="HTML"
     )
 
