@@ -3,33 +3,32 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# Токен из вашего запроса
 BOT_TOKEN = "8721036900:AAEwk-tRJvgP0NVtsg3U3GOg1_3shj5nTB8"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 def get_buttons():
-    # Текст кнопок без начальных пробелов. 
-    # (Отступ от эмодзи формируется самим Telegram автоматически)
+    # Используем официальный icon_custom_emoji_id
+    # Добавляем в конец текста "\u200b" (невидимый пробел) для выравнивания
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text="Магазин", 
+            text="Магазин\u200b", 
             callback_data="shop", 
             icon_custom_emoji_id="5920332557466997677"
         )],
         [InlineKeyboardButton(
-            text="Профиль", 
+            text="Профиль\u200b", 
             callback_data="profile", 
             icon_custom_emoji_id="6035084557378654059"
         )],
         [InlineKeyboardButton(
-            text="Поддержка", 
+            text="Поддержка\u200b", 
             callback_data="support", 
             icon_custom_emoji_id="6039422865189638057"
         )],
         [InlineKeyboardButton(
-            text="Правила", 
+            text="Правила\u200b", 
             callback_data="rules", 
             icon_custom_emoji_id="6028435952299413210"
         )]
@@ -38,9 +37,9 @@ def get_buttons():
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    # Теперь весь текст находится на одной строчке и разделен обычным пробелом
+    # Текст строго с пустой строкой посередине (\n\n)
     text = (
-        "<tg-emoji emoji-id=\"6028315147754278596\">🙂</tg-emoji> Добро пожаловать в Morgodon Shop "
+        "<tg-emoji emoji-id=\"6028315147754278596\">🙂</tg-emoji> Добро пожаловать в Morgodon Shop\n\n"
         "Для покупки товаров используйте кнопки ниже <tg-emoji emoji-id=\"6039802767931871481\">⬇️</tg-emoji>"
     )
     await message.answer(text, reply_markup=get_buttons(), parse_mode="HTML")
