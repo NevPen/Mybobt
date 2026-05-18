@@ -9,8 +9,6 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 def get_buttons():
-    # Используем официальный icon_custom_emoji_id
-    # Добавляем в конец текста "\u200b" (невидимый пробел) для выравнивания
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text="Магазин\u200b", 
@@ -35,16 +33,19 @@ def get_buttons():
     ])
     return keyboard
 
+def get_main_button():
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Главная", callback_data="main")]
+    ])
+    return keyboard
+
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    # Текст строго с пустой строкой посередине (\n\n)
     text = (
         "<tg-emoji emoji-id=\"6028315147754278596\">🙂</tg-emoji> Добро пожаловать в Morgodon Shop\n\n"
         "Для покупки товаров используйте кнопки ниже <tg-emoji emoji-id=\"6039802767931871481\">⬇️</tg-emoji>"
     )
     await message.answer(text, reply_markup=get_buttons(), parse_mode="HTML")
-
-# --- ОБРАБОТЧИКИ НАЖАТИЙ НА КНОПКИ ---
 
 @dp.callback_query(lambda c: c.data == 'shop')
 async def process_shop(callback_query: types.CallbackQuery):
@@ -67,10 +68,20 @@ async def process_support(callback_query: types.CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'rules')
 async def process_rules(callback_query: types.CallbackQuery):
     await callback_query.answer()
-    text = "<tg-emoji emoji-id=\"6028435952299413210\">ℹ️</tg-emoji> Правила магазина: будьте вежливы."
-    await callback_query.message.answer(text, parse_mode="HTML")
+    text = """Перед использованием бота, пожалуйста прочтите правила указанные ниже
 
-# -------------------------------------
+<a href="https://telegra.ph/Polzovatelskoe-soglashenie-04-01-19">Пользовательское соглашение</a>
+<a href="https://telegra.ph/Politika-konfidencialnosti-04-01-26">Политика конфиденциальности</a>"""
+    await callback_query.message.answer(text, reply_markup=get_main_button(), parse_mode="HTML")
+
+@dp.callback_query(lambda c: c.data == 'main')
+async def process_main(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    text = (
+        "<tg-emoji emoji-id=\"6028315147754278596\">🙂</tg-emoji> Добро пожаловать в Morgodon Shop\n\n"
+        "Для покупки товаров используйте кнопки ниже <tg-emoji emoji-id=\"6039802767931871481\">⬇️</tg-emoji>"
+    )
+    await callback_query.message.answer(text, reply_markup=get_buttons(), parse_mode="HTML")
 
 async def main():
     print("Бот запущен")
