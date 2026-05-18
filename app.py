@@ -1,5 +1,4 @@
 import asyncio
-import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LinkPreviewOptions
@@ -15,35 +14,14 @@ dp = Dispatcher()
 # Множество для временного хранения заблокированных пользователей
 banned_users = set()
 
+# Глобальный счетчик тикетов (хранится в памяти и сбрасывается при перезапуске)
+ticket_counter = 0
+
 # --- СОСТОЯНИЯ (FSM) ---
 class SupportStates(StatesGroup):
     waiting_for_topic = State()        # Ожидание темы от пользователя
     waiting_for_admin_reply = State()  # Ожидание ответа от админа
     waiting_for_ban_reason = State()   # Ожидание причины бана от админа
-
-# --- ФУНКЦИИ ДЛЯ РАБОТЫ С НОМЕРАМИ ЗАЯВОК ---
-def get_current_ticket_number():
-    file_path = "tickets.txt"
-    if not os.path.exists(file_path):
-        return 0
-    with open(file_path, "r", encoding="utf-8") as f:
-        return int(f.read().strip())
-
-def get_next_ticket_number():
-    file_path = "tickets.txt"
-    if not os.path.exists(file_path):
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write("0")
-    
-    with open(file_path, "r", encoding="utf-8") as f:
-        current_number = int(f.read().strip())
-    
-    next_number = current_number + 1
-    
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(str(next_number))
-        
-    return next_number
 
 # --- ТЕКСТА И КЛАВИАТУРЫ ---
 START_TEXT = (
@@ -132,19 +110,21 @@ async def process_support(callback_query: types.CallbackQuery, state: FSMContext
 # --- ПРИЕМ ТЕКСТА ОБРАЩЕНИЯ ОТ ПОЛЬЗОВАТЕЛЯ ---
 @dp.message(SupportStates.waiting_for_topic)
 async def ticket_topic_received(message: types.Message, state: FSMContext):
-    ticket_id = get_next_ticket_number()
+    global ticket_counter
+    ticket_counter += 1  # Увеличиваем локальный счетчик тикетов в оперативной памяти
+    
     user_id = message.from_user.id
     username = f"@{message.from_user.username}" if message.from_user.username else "Нет юзернейма"
     user_fullname = message.from_user.full_name
     
     user_text = (
         "<tg-emoji emoji-id=\"6039450962865688331\">📝</tg-emoji> Ваше сообщение было <b>отправлено в поддержку</b>, ожидайте <b>ответа</b>\n"
-        f"<tg-emoji emoji-id=\"5870998024779468554\">🔢</tg-emoji> Номер вашей заявки: <code>#{ticket_id}</code>"
+        f"<tg-emoji emoji-id=\"5870998024779468554\">🔢</tg-emoji> Номер вашей заявки: <code>#{ticket_counter}</code>"
     )
     await message.answer(user_text, reply_markup=get_main_button(), parse_mode="HTML")
     
     admin_text = (
-        f"<tg-emoji emoji-id=\"6039614175917903752\">✏️</tg-emoji> <b>Новое обращение в поддержку! Tiket #{ticket_id}</b>\n\n"
+        f"<tg-emoji emoji-id=\"6039614175917903752\">✏️</tg-emoji> <b>Новое обращение в поддержку! Tiket #{ticket_counter}</b>\n\n"
         f"<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji><b>Пользователь:</b> {user_fullname}\n"
         f"<tg-emoji emoji-id=\"5769289093221454192\">🔗</tg-emoji><b>Юзернейм:</b> {username}\n"
         f"<tg-emoji emoji-id=\"5884366771913233289\">🆔</tg-emoji> <b>ID аккаунта:</b> {user_id}\n\n"
@@ -215,7 +195,6 @@ async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMConte
     await state.update_data(reply_to_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_admin_reply)
     
-    # Текст запроса ответа полностью убран из отправки
     await callback_query.answer()
 
 @dp.message(SupportStates.waiting_for_admin_reply)
@@ -225,10 +204,9 @@ async def admin_send_reply_message(message: types.Message, state: FSMContext):
 
     data = await state.get_data()
     target_user_id = data.get("reply_to_user_id")
-    ticket_id = get_current_ticket_number()
     
     reply_text = (
-        f"<tg-emoji emoji-id=\"6021418126061605425\">📞</tg-emoji> Ваш тикет <b>#{ticket_id}</b> был <b>обработан</b>\n"
+        f"<tg-emoji emoji-id=\"6021418126061605425\">📞</tg-emoji> Ваш тикет <b>#{ticket_counter}</b> был <b>обработан</b>\n"
         f"<tg-emoji emoji-id=\"5771851822897566479\">📝</tg-emoji> Ответ: {message.text}\n"
         f"<tg-emoji emoji-id=\"6021681257232994766\">🔒</tg-emoji> Ваш тикет был <b>автоматически закрыт</b>"
     )
