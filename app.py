@@ -9,24 +9,58 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 def get_buttons():
+    # На самих кнопках теги <tg-emoji> не работают, используем обычные эмодзи
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="\U0001f3ea Магазин", callback_data="shop")],
-        [InlineKeyboardButton(text="\U0001f464 Профиль", callback_data="profile")],
-        [InlineKeyboardButton(text="\U0001f4e3 Поддержка", callback_data="support")],
-        [InlineKeyboardButton(text="\u2139\ufe0f Правила", callback_data="rules")]
+        [InlineKeyboardButton(text="🏪 Магазин", callback_data="shop")],
+        [InlineKeyboardButton(text="👤 Профиль", callback_data="profile")],
+        [InlineKeyboardButton(text="📣 Поддержка", callback_data="support")],
+        [InlineKeyboardButton(text="ℹ Правила", callback_data="rules")]
     ])
     return keyboard
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    text = """\U0001f642 Добро пожаловать в Morgodon Shop
+    # Текст с кастомными эмодзи. Важно: добавлен parse_mode="HTML"
+    text = (
+        "<tg-emoji emoji-id=\"6028315147754278596\">🙂</tg-emoji> Добро пожаловать в Morgodon Shop\n"
+        "Для покупки товаров используйте кнопки ниже <tg-emoji emoji-id=\"6039802767931871481\">⬇️</tg-emoji>"
+    )
+    await message.answer(text, reply_markup=get_buttons(), parse_mode="HTML")
 
-Для покупки товаров используйте кнопки ниже \u2b07\ufe0f"""
-    await message.answer(text, reply_markup=get_buttons())
+# --- ОБРАБОТЧИКИ НАЖАТИЙ НА КНОПКИ ---
+
+@dp.callback_query(lambda c: c.data == 'shop')
+async def process_shop(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    text = "<tg-emoji emoji-id=\"5920332557466997677\">🏪</tg-emoji> Вы перешли в Магазин. Выберите товар:"
+    await callback_query.message.answer(text, parse_mode="HTML")
+
+@dp.callback_query(lambda c: c.data == 'profile')
+async def process_profile(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    text = "<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji> Это ваш Профиль. Ваш баланс: 0 руб."
+    await callback_query.message.answer(text, parse_mode="HTML")
+
+@dp.callback_query(lambda c: c.data == 'support')
+async def process_support(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    text = "<tg-emoji emoji-id=\"6039422865189638057\">📣</tg-emoji> Связь с Поддержкой: @admin_username"
+    await callback_query.message.answer(text, parse_mode="HTML")
+
+@dp.callback_query(lambda c: c.data == 'rules')
+async def process_rules(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    text = "<tg-emoji emoji-id=\"6028435952299413210\">ℹ</tg-emoji> Правила магазина: будьте вежливы."
+    await callback_query.message.answer(text, parse_mode="HTML")
+
+# -------------------------------------
 
 async def main():
-    print("Бот запущен с кастомными эмодзи")
+    print("Бот запущен")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    async def main_runner():
+        await bot.delete_webhook(drop_pending_updates=True)
+        await main()
+    asyncio.run(main_runner())
