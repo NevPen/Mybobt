@@ -10,25 +10,22 @@ dp = Dispatcher()
 
 def get_buttons():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Магазин", callback_data="shop")],
-        [InlineKeyboardButton(text="Профиль", callback_data="profile")],
-        [InlineKeyboardButton(text="Поддержка", callback_data="support")],
-        [InlineKeyboardButton(text="Правила", callback_data="rules")]
+        [InlineKeyboardButton(text="\U0001f3ea Магазин", callback_data="shop")],
+        [InlineKeyboardButton(text="\U0001f464 Профиль", callback_data="profile")],
+        [InlineKeyboardButton(text="\U0001f4e3 Поддержка", callback_data="support")],
+        [InlineKeyboardButton(text="\u2139\ufe0f Правила", callback_data="rules")]
     ])
     return keyboard
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    text = """Добро пожаловать в Morgodon Shop
+    text = """\U0001f642 Добро пожаловать в Morgodon Shop
 
-Для покупки товаров используйте кнопки ниже"""
+Для покупки товаров используйте кнопки ниже \u2b07\ufe0f"""
     await message.answer(text, reply_markup=get_buttons())
 
-# Кнопки есть, но они не работают (ничего не делают)
-# Никаких обработчиков для callback_data нет
-
 async def main():
-    print("Бот запущен")
+    print("Бот запущен с кастомными эмодзи")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
