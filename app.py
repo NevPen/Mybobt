@@ -111,7 +111,7 @@ async def process_support(callback_query: types.CallbackQuery, state: FSMContext
 @dp.message(SupportStates.waiting_for_topic)
 async def ticket_topic_received(message: types.Message, state: FSMContext):
     global ticket_counter
-    ticket_counter += 1  # Увеличиваем локальный счетчик тикетов в оперативной памяти
+    ticket_counter += 1
     
     user_id = message.from_user.id
     username = f"@{message.from_user.username}" if message.from_user.username else "Нет юзернейма"
@@ -196,6 +196,12 @@ async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMConte
     await state.set_state(SupportStates.waiting_for_admin_reply)
     
     await callback_query.answer()
+    
+    # Добавлен запрос ответа на тикет строго по вашему ТЗ
+    await callback_query.message.reply(
+        "<tg-emoji emoji-id=\"6039404727542747508\">⌨️</tg-emoji>Напишите ответ пользователю",
+        parse_mode="HTML"
+    )
 
 @dp.message(SupportStates.waiting_for_admin_reply)
 async def admin_send_reply_message(message: types.Message, state: FSMContext):
