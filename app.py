@@ -9,18 +9,34 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 def get_buttons():
-    # На самих кнопках теги <tg-emoji> не работают, используем обычные эмодзи
+    # Передаем ID премиум-эмодзи в параметр icon_custom_emoji_id
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🏪 Магазин", callback_data="shop")],
-        [InlineKeyboardButton(text="👤 Профиль", callback_data="profile")],
-        [InlineKeyboardButton(text="📣 Поддержка", callback_data="support")],
-        [InlineKeyboardButton(text="ℹ Правила", callback_data="rules")]
+        [InlineKeyboardButton(
+            text="Магазин", 
+            callback_data="shop", 
+            icon_custom_emoji_id="5920332557466997677"
+        )],
+        [InlineKeyboardButton(
+            text="Профиль", 
+            callback_data="profile", 
+            icon_custom_emoji_id="6035084557378654059"
+        )],
+        [InlineKeyboardButton(
+            text="Поддержка", 
+            callback_data="support", 
+            icon_custom_emoji_id="6039422865189638057"
+        )],
+        [InlineKeyboardButton(
+            text="Правила", 
+            callback_data="rules", 
+            icon_custom_emoji_id="6028435952299413210"
+        )]
     ])
     return keyboard
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    # Текст с кастомными эмодзи. Важно: добавлен parse_mode="HTML"
+    # Текст сообщения
     text = (
         "<tg-emoji emoji-id=\"6028315147754278596\">🙂</tg-emoji> Добро пожаловать в Morgodon Shop\n"
         "Для покупки товаров используйте кнопки ниже <tg-emoji emoji-id=\"6039802767931871481\">⬇️</tg-emoji>"
@@ -50,7 +66,7 @@ async def process_support(callback_query: types.CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'rules')
 async def process_rules(callback_query: types.CallbackQuery):
     await callback_query.answer()
-    text = "<tg-emoji emoji-id=\"6028435952299413210\">ℹ</tg-emoji> Правила магазина: будьте вежливы."
+    text = "<tg-emoji emoji-id=\"6028435952299413210\">ℹ️</tg-emoji> Правила магазина: будьте вежливы."
     await callback_query.message.answer(text, parse_mode="HTML")
 
 # -------------------------------------
