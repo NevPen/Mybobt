@@ -12,11 +12,21 @@ ADMIN_ID = 7604556074  # Ваш Telegram ID
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+# Множество для временного хранения заблокированных пользователей
 banned_users = set()
 
+# --- СОСТОЯНИЯ (FSM) ---
 class SupportStates(StatesGroup):
     waiting_for_topic = State()       
     waiting_for_admin_reply = State() 
+
+# --- ФУНКЦИИ ДЛЯ РАБОТЫ С НОМЕРАМИ ЗАЯВОК ---
+def get_current_ticket_number():
+    file_path = "tickets.txt"
+    if not os.path.exists(file_path):
+        return 0
+    with open(file_path, "r", encoding="utf-8") as f:
+        return int(f.read().strip())
 
 def get_next_ticket_number():
     file_path = "tickets.txt"
@@ -34,6 +44,7 @@ def get_next_ticket_number():
         
     return next_number
 
+# --- ТЕКСТА И КЛАВИАТУРЫ ---
 START_TEXT = (
     "<tg-emoji emoji-id=\"6028315147754278596\">🙂</tg-emoji> Добро пожаловать в Morgodon Shop\n\n"
     "Для покупки товаров используйте кнопки ниже <tg-emoji emoji-id=\"6039802767931871481\">⬇️</tg-emoji>"
@@ -63,6 +74,7 @@ def get_admin_inline_buttons(user_id: int):
     ])
     return keyboard
 
+# --- ГЛОБАЛЬНАЯ ПРОВЕРКА НА БАН ---
 @dp.message(lambda message: message.from_user.id in banned_users)
 @dp.callback_query(lambda callback: callback.from_user.id in banned_users)
 async def process_banned(event):
@@ -71,6 +83,7 @@ async def process_banned(event):
     elif isinstance(event, types.CallbackQuery):
         await event.answer("Вы заблокированы администрацией.", show_alert=True)
 
+# --- КОМАНДА /START ---
 @dp.message(Command("start"))
 async def start(message: types.Message, state: FSMContext):
     await state.clear()
@@ -98,7 +111,12 @@ async def process_rules(callback_query: types.CallbackQuery):
         "<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> <a href=\"https://telegra.ph\">Пользовательское соглашение</a>\n"
         "<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> <a href=\"https://telegra.ph\">Политика конфиденциальности</a>"
     )
-    await callback_query.message.edit_text(text, reply_markup=get_main_button(), parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+    await callback_query.message.edit_text(
+        text, 
+        reply_markup=get_main_button(), 
+        parse_mode="HTML", 
+        link_preview_options=LinkPreviewOptions(is_disabled=True)
+    )
 
 @dp.callback_query(lambda c: c.data == 'support')
 async def process_support(callback_query: types.CallbackQuery, state: FSMContext):
@@ -110,6 +128,7 @@ async def process_support(callback_query: types.CallbackQuery, state: FSMContext
     await callback_query.message.edit_text(text, reply_markup=None, parse_mode="HTML")
     await state.set_state(SupportStates.waiting_for_topic)
 
+# --- ПРИЕМ ТЕКСТА ОБРАЩЕНИЯ ОТ ПОЛЬЗОВАТЕЛЯ ---
 @dp.message(SupportStates.waiting_for_topic)
 async def ticket_topic_received(message: types.Message, state: FSMContext):
     ticket_id = get_next_ticket_number()
@@ -123,7 +142,6 @@ async def ticket_topic_received(message: types.Message, state: FSMContext):
     )
     await message.answer(user_text, reply_markup=get_main_button(), parse_mode="HTML")
     
-    # Строго скопированный текст уведомления по вашему шаблону
     admin_text = (
         f"<tg-emoji emoji-id=\"6039614175917903752\">✏️</tg-emoji> <b>Новое обращение в поддержку! Tiket #{ticket_id}</b>\n\n"
         f"<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji><b>Пользователь:</b> {user_fullname}\n"
@@ -172,6 +190,7 @@ async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMConte
     await callback_query.answer()
     await callback_query.message.reply("✍️ Напишите ответное сообщение для пользователя:")
 
+# --- ОТПРАВКА ОТВЕТА ПОЛЬЗОВАТЕЛЮ ---
 @dp.message(SupportStates.waiting_for_admin_reply)
 async def admin_send_reply_message(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
@@ -179,20 +198,22 @@ async def admin_send_reply_message(message: types.Message, state: FSMContext):
 
     data = await state.get_data()
     target_user_id = data.get("reply_to_user_id")
+    ticket_id = get_current_ticket_number()
     
     reply_text = (
-        f"✉️ <b>Получен ответ от технической поддержки:</b>\n\n"
-        f"<i>{message.text}</i>"
+        f"<tg-emoji emoji-id=\"6021418126061605425\">📞</tg-emoji> Ваш тикет <b>#{ticket_id}</b> был <b>обработан</b>\n"
+        f"<tg-emoji emoji-id=\"5771851822897566479\">📝</tg-emoji> Ответ: {message.text}\n"
+        f"<tg-emoji emoji-id=\"6021681257232994766\">🔒</tg-emoji> Ваш тикет был <b>автоматически закрыт</b>"
     )
     
     try:
-        await bot.send_message(chat_id=target_user_id, text=reply_text, parse_mode="HTML")
-        await message.answer("✅ Ответ успешно доставлен пользователю.")
+        await bot.send_message(chat_id=target_user_id, text=reply_text, reply_markup=get_main_button(), parse_mode="HTML")
     except Exception as e:
-        await message.answer(f"❌ Ошибка отправки! Скорее всего, пользователь заблокировал бота: {e}")
+        await message.answer(f"❌ Ошибка отправки! Пользователь мог заблокировать бота: {e}")
         
     await state.clear()
 
+# --- СТАРТ БОТА ---
 async def main():
     print("Бот запущен")
     await dp.start_polling(bot)
