@@ -11,17 +11,17 @@ ADMIN_ID = 7604556074  # Ваш Telegram ID
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Изменено: теперь это словарь для хранения пар {user_id: "причина блокировки"}
+# Словарь для хранения заблокированных пользователей {user_id: "причина"}
 banned_users = {}
 
-# Глобальный счетчик тикетов (хранится в памяти и сбрасывается при перезапуске)
+# Глобальный счетчик тикетов
 ticket_counter = 0
 
 # --- СОСТОЯНИЯ (FSM) ---
 class SupportStates(StatesGroup):
-    waiting_for_topic = State()        # Ожидание темы от пользователя
-    waiting_for_admin_reply = State()  # Ожидание ответа от админа
-    waiting_for_ban_reason = State()   # Ожидание причины бана от админа
+    waiting_for_topic = State()        
+    waiting_for_admin_reply = State()  
+    waiting_for_ban_reason = State()   
 
 # --- ТЕКСТА И КЛАВИАТУРЫ ---
 START_TEXT = (
@@ -44,6 +44,25 @@ def get_main_button():
     ])
     return keyboard
 
+# Клавиатура главного меню Магазина
+def get_shop_categories():
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Lebro Cheat\u200b", callback_data="prod_lebro", icon_custom_emoji_id="5886285355279193209")],
+        [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
+    ])
+    return keyboard
+
+# Клавиатура выбора версии чита
+def get_lebro_versions():
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="Lite\u200b", callback_data="ver_lebro_lite", icon_custom_emoji_id="5893057118545646106"),
+            InlineKeyboardButton(text="Vip\u200b", callback_data="ver_lebro_vip", icon_custom_emoji_id="5893236738372932548")
+        ],
+        [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
+    ])
+    return keyboard
+
 def get_admin_inline_buttons(user_id: int):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -58,14 +77,11 @@ def get_admin_inline_buttons(user_id: int):
 @dp.callback_query(lambda callback: callback.from_user.id in banned_users)
 async def process_banned(event):
     user_id = event.from_user.id
-    # Достаем из словаря сохраненную причину блокировки для этого ID
     reason = banned_users.get(user_id, "Не указана")
-    
     text_ban = (
         "<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>Вы заблокированы администратором<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>\n"
         f"<tg-emoji emoji-id=\"6039422865189638057\">📣</tg-emoji>Причина: {reason}"
     )
-    
     if isinstance(event, types.Message):
         await event.answer(text_ban, parse_mode="HTML")
     elif isinstance(event, types.CallbackQuery):
@@ -79,10 +95,26 @@ async def start(message: types.Message, state: FSMContext):
 
 # --- ОБРАБОТЧИКИ НАЖАТИЙ НА КНОПКИ ПОЛЬЗОВАТЕЛЕМ ---
 
+# Вход в Магазин
 @dp.callback_query(lambda c: c.data == 'shop')
 async def process_shop(callback_query: types.CallbackQuery):
     await callback_query.answer()
-    text = "<tg-emoji emoji-id=\"5920332557466997677\">🏪</tg-emoji> Вы перешли в Магазин. Выберите товар:"
+    text = "<tg-emoji emoji-id=\"5870563425628721113\">🛍</tg-emoji> <b>Выберите нужный товар</b>"
+    await callback_query.message.edit_text(text, reply_markup=get_shop_categories(), parse_mode="HTML")
+
+# Выбор категории Lebro Cheat
+@dp.callback_query(lambda c: c.data == 'prod_lebro')
+async def process_lebro_cheat(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    text = "<b>Выберите версию Lebro Cheat</b>"
+    await callback_query.message.edit_text(text, reply_markup=get_lebro_versions(), parse_mode="HTML")
+
+# Заглушки под выбор версий (Lite / Vip)
+@dp.callback_query(lambda c: c.data in ['ver_lebro_lite', 'ver_lebro_vip'])
+async def process_lebro_ver_select(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    version_name = "Lite" if callback_query.data == "ver_lebro_lite" else "Vip"
+    text = f"Вы выбрали версию: <b>Lebro Cheat {version_name}</b>\n\nРаздел оплаты находится в разработке."
     await callback_query.message.edit_text(text, reply_markup=get_main_button(), parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data == 'profile')
@@ -180,7 +212,6 @@ async def admin_ban_reason_received(message: types.Message, state: FSMContext):
     data = await state.get_data()
     target_user_id = data.get("ban_user_id")
     
-    # Изменено: сохраняем в словарь причину, которую вы только что ввели
     banned_users[target_user_id] = message.text
     
     text_ban = (
