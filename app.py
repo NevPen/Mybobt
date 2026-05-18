@@ -7,36 +7,30 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 BOT_TOKEN = "8721036900:AAEwk-tRJvgP0NVtsg3U3GOg1_3shj5nTB8"
+ADMIN_ID = 7604556074  # Ваш Telegram ID для получения уведомлений
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# --- ОПРЕДЕЛЕНИЕ СОСТОЯНИЙ (FSM) ---
 class SupportStates(StatesGroup):
-    waiting_for_topic = State()  # Ожидание ввода темы от пользователя
+    waiting_for_topic = State()
 
-# --- ФУНКЦИЯ ДЛЯ РАБОТЫ С ФАЙЛОМ ТИКЕТОВ ---
 def get_next_ticket_number():
     file_path = "tickets.txt"
-    # Если файла нет, создаем его со значением 0
     if not os.path.exists(file_path):
         with open(file_path, "w", encoding="utf-8") as f:
             f.write("0")
     
-    # Читаем текущий номер
     with open(file_path, "r", encoding="utf-8") as f:
         current_number = int(f.read().strip())
     
-    # Увеличиваем на 1
     next_number = current_number + 1
     
-    # Сохраняем новый номер обратно в файл
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(str(next_number))
         
     return next_number
 
-# --- КЛАВИАТУРЫ ---
 START_TEXT = (
     "<tg-emoji emoji-id=\"6028315147754278596\">🙂</tg-emoji> Добро пожаловать в Morgodon Shop\n\n"
     "Для покупки товаров используйте кнопки ниже <tg-emoji emoji-id=\"6039802767931871481\">⬇️</tg-emoji>"
@@ -59,7 +53,7 @@ def get_main_button():
 
 @dp.message(Command("start"))
 async def start(message: types.Message, state: FSMContext):
-    await state.clear()  # Сбрасываем состояния, если пользователь ввел /start заново
+    await state.clear()
     await message.answer(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
 
 # --- ОБРАБОТЧИКИ НАЖАТИЙ НА КНОПКИ ---
@@ -91,45 +85,54 @@ async def process_rules(callback_query: types.CallbackQuery):
         link_preview_options=LinkPreviewOptions(is_disabled=True)
     )
 
-# --- ИЗМЕНЕННАЯ КНОПКА ПОДДЕРЖКИ ---
 @dp.callback_query(lambda c: c.data == 'support')
 async def process_support(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.answer()
-    
     text = (
         "<tg-emoji emoji-id=\"6021418126061605425\">📞</tg-emoji> <b>Техническая поддержка</b>\n\n"
         "<tg-emoji emoji-id=\"6039450962865688331\">📝</tg-emoji> Введите <b>тему вашего обращения</b>"
     )
-    
-    # Изменяем текст сообщения (кнопки убираем, передавая reply_markup=None)
     await callback_query.message.edit_text(text, reply_markup=None, parse_mode="HTML")
-    
-    # Включаем режим ожидания сообщения от пользователя
     await state.set_state(SupportStates.waiting_for_topic)
 
-# --- ОБРАБОТЧИК ДЛЯ ПРИЕМА ТЕКСТА ТЕМЫ ---
+# --- ПРИЕМ ТЕКСТА И ОТПРАВКА АДМИНУ ---
 @dp.message(SupportStates.waiting_for_topic)
 async def ticket_topic_received(message: types.Message, state: FSMContext):
-    # Получаем следующий номер тикета из файла
     ticket_id = get_next_ticket_number()
     
-    # Текст сообщения об успешной отправке
-    text = (
+    # Данные отправителя для формирования красивых ссылок
+    user_id = message.from_user.id
+    username = f"@{message.from_user.username}" if message.from_user.username else "Нет юзернейма"
+    user_fullname = message.from_user.full_name
+    
+    # 1. Текст, который увидит пользователь в боте
+    user_text = (
         "<tg-emoji emoji-id=\"6039450962865688331\">📝</tg-emoji> Ваше сообщение было <b>отправлено в поддержку</b>, ожидайте <b>ответа</b>\n"
         f"<tg-emoji emoji-id=\"5870998024779468554\">🔢</tg-emoji> Номер вашей заявки: <code>#{ticket_id}</code>"
     )
+    await message.answer(user_text, reply_markup=get_main_button(), parse_mode="HTML")
     
-    # Отправляем ответное сообщение с кнопкой "Главная"
-    await message.answer(text, reply_markup=get_main_button(), parse_mode="HTML")
+    # 2. Формируем сообщение-уведомление для ВАС (администратора)
+    admin_text = (
+        f"🚨 <b>Новое обращение в поддержку! Tiket #{ticket_id}</b>\n\n"
+        f"👤 <b>Пользователь:</b> {user_fullname}\n"
+        f"🔗 <b>Юзернейм:</b> {username}\n"
+        f"🆔 <b>ID аккаунта:</b> <a href='tg://user?id={user_id}'>{user_id}</a>\n\n"
+        f"💬 <b>Текст обращения:</b>\n<i>{message.text}</i>"
+    )
     
-    # Сбрасываем состояние FSM, чтобы бот снова реагировал на обычные команды
+    # Отправляем уведомление вам в ЛС (чтобы сработало, вы должны быть один раз запущены в этом боте через /start)
+    try:
+        await bot.send_message(chat_id=ADMIN_ID, text=admin_text, parse_mode="HTML")
+    except Exception as e:
+        print(f"Не удалось отправить уведомление админу: {e}")
+        
     await state.clear()
 
-# --- КНОПКА ГЛАВНАЯ ---
 @dp.callback_query(lambda c: c.data == 'main')
 async def process_main(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.answer()
-    await state.clear()  # На всякий случай сбрасываем FSM при выходе на главную
+    await state.clear()
     await callback_query.message.edit_text(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
 
 # -------------------------------------
