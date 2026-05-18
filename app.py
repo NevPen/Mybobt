@@ -22,7 +22,6 @@ DATA_FILE = "shop_data.json"
 
 def load_shop_data():
     if not os.path.exists(DATA_FILE):
-        # Стартовая пустая структура категорий и тарифов
         initial_data = {
             "lebro_vip": {"1_day": [], "7_days": [], "30_days": [], "forever": []},
             "lebro_lite": {"1_day": [], "7_days": []}
@@ -37,9 +36,6 @@ def save_shop_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# Инициализируем данные при старте
-shop_data = load_shop_data()
-
 # --- СОСТОЯНИЯ (FSM) ---
 class SupportStates(StatesGroup):
     waiting_for_topic = State()        
@@ -47,7 +43,7 @@ class SupportStates(StatesGroup):
     waiting_for_ban_reason = State()   
 
 class AdminStates(StatesGroup):
-    waiting_for_key = State()  # Ожидание ввода ключа от админа
+    waiting_for_key = State()  
 
 # --- ТЕКСТА И КЛАВИАТУРЫ ---
 START_TEXT = (
@@ -83,29 +79,30 @@ def get_lebro_versions():
         [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
-# ДИНАМИЧЕСКИЕ КЛАВИАТУРЫ ДЛЯ МАГАЗИНА (Показывают только то, где есть ключи)
+# ДИНАМИЧЕСКИЕ КЛАВИАТУРЫ (Выводят количество товара в наличии)
 def get_user_periods_keyboard(version_type):
     current_data = load_shop_data()
     version_items = current_data.get(version_type, {})
     buttons_row = []
     
-    # Названия периодов для кнопок
     labels = {
-        "1_day": "1 день\u200b",
-        "7_days": "7 дней\u200b",
-        "30_days": "30 дней\u200b",
-        "forever": "Навсегда\u200b"
+        "1_day": "1 день",
+        "7_days": "7 дней",
+        "30_days": "30 дней",
+        "forever": "Навсегда"
     }
     
     for period, keys_list in version_items.items():
-        if len(keys_list) > 0:  # Показываем кнопку только если есть хотя бы 1 ключ
+        count = len(keys_list)
+        if count > 0:  # Показываем кнопку, только если товар есть
+            # Форматируем текст кнопки: добавляем количество товара в наличии
+            button_text = f"{labels[period]} ({count})\u200b"
             buttons_row.append(InlineKeyboardButton(
-                text=labels[period], 
+                text=button_text, 
                 callback_data=f"buy_{version_type}_{period}",
                 icon_custom_emoji_id="5836907383292436018"
             ))
             
-    # Собираем клавиатуру: инлайн-кнопки тарифов в один ряд, снизу кнопка Главная
     keyboard_structure = []
     if buttons_row:
         keyboard_structure.append(buttons_row)
@@ -160,8 +157,7 @@ async def process_banned(event):
 # --- АДМИН-КОМАНДА /BOOM ---
 @dp.message(Command("boom"))
 async def admin_panel_cmd(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID:
-        return
+    if message.from_user.id != ADMIN_ID: return
     await state.clear()
     await message.answer("Добавить версии lebro", reply_markup=get_admin_main_keyboard())
 
@@ -185,7 +181,6 @@ async def process_lebro_cheat(callback_query: types.CallbackQuery):
     text = "<b>Выберите версию Lebro Cheat</b>"
     await callback_query.message.edit_text(text, reply_markup=get_lebro_versions(), parse_mode="HTML")
 
-# Нажатие на версию (Vip или Lite) пользователем
 @dp.callback_query(lambda c: c.data in ['ver_lebro_lite', 'ver_lebro_vip'])
 async def user_select_version(callback_query: types.CallbackQuery):
     await callback_query.answer()
@@ -194,7 +189,6 @@ async def user_select_version(callback_query: types.CallbackQuery):
     current_data = load_shop_data()
     version_dict = current_data.get(version_type, {})
     
-    # Проверяем, есть ли хоть один ключ в каком-либо из периодов этой версии
     has_items = any(len(keys) > 0 for keys in version_dict.values())
     
     if not has_items:
@@ -204,27 +198,26 @@ async def user_select_version(callback_query: types.CallbackQuery):
         text = "<b>Выберите период подписки:</b>"
         await callback_query.message.edit_text(text, reply_markup=get_user_periods_keyboard(version_type), parse_mode="HTML")
 
-# Обработчик покупки (когда ключи есть в наличии)
 @dp.callback_query(lambda c: c.data.startswith('buy_'))
 async def user_buy_product(callback_query: types.CallbackQuery):
     await callback_query.answer()
     parts = callback_query.data.split('_')
-    version_type = f"{parts[1]}_{parts[2]}"  # lebro_lite или lebro_vip
+    version_type = f"{parts[1]}_{parts[2]}"  
     period = f"{parts[3]}_{parts[4]}" if len(parts) == 5 else parts[3]
     
     current_data = load_shop_data()
     keys_list = current_data[version_type][period]
     
     if keys_list:
-        purchased_key = keys_list.pop(0)  # Забираем первый ключ из списка
-        save_shop_data(current_data)      # Сохраняем базу без этого ключа
+        purchased_key = keys_list.pop(0)  
+        save_shop_data(current_data)      
         text = f"🎉 <b>Успешная покупка!</b>\n\nВаш ключ: <code>{purchased_key}</code>"
     else:
         text = "<tg-emoji emoji-id=\"5920046907782074235\">📝</tg-emoji>Извините, этот товар только что закончился."
         
     await callback_query.message.edit_text(text, reply_markup=get_main_button(), parse_mode="HTML")
 
-# --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРОМ ---
+# --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА ---
 
 @dp.callback_query(lambda c: c.data in ['adm_choose_vip', 'adm_choose_lite'])
 async def admin_select_version(callback_query: types.CallbackQuery):
@@ -239,7 +232,7 @@ async def admin_select_period(callback_query: types.CallbackQuery, state: FSMCon
     await callback_query.answer()
     
     parts = callback_query.data.replace("add_", "").split("_")
-    version_type = f"{parts[0]}_{parts[1]}"  # lebro_vip или lebro_lite
+    version_type = f"{parts[0]}_{parts[1]}"  
     period = f"{parts[2]}_{parts[3]}" if len(parts) == 4 else parts[2]
     
     await state.update_data(target_version=version_type, target_period=period)
@@ -256,7 +249,7 @@ async def admin_key_received(message: types.Message, state: FSMContext):
     period = state_data.get("target_period")
     
     current_data = load_shop_data()
-    current_data[version_type][period].append(message.text) # Добавляем ключ в базу данных
+    current_data[version_type][period].append(message.text) 
     save_shop_data(current_data)
     
     await message.answer("добавлен новый товар!")
@@ -324,10 +317,15 @@ async def process_main(callback_query: types.CallbackQuery, state: FSMContext):
     await state.clear()
     await callback_query.message.edit_text(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
 
+# --- ПАНЕЛЬ УПРАВЛЕНИЯ ДЛЯ АДМИНИСТРАТОРА (ИСПРАВЛЕНО: добавлен индекс [1]) ---
+
 @dp.callback_query(lambda c: c.data.startswith('ban_'))
 async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
-    target_user_id = int(callback_query.data.split('_'))
+    
+    # Исправлено: берем ровно второй элемент [1] (ID пользователя) из callback_data
+    target_user_id = int(callback_query.data.split('_')[1])
+    
     await state.update_data(ban_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_ban_reason)
     await callback_query.answer()
@@ -352,7 +350,10 @@ async def admin_ban_reason_received(message: types.Message, state: FSMContext):
 @dp.callback_query(lambda c: c.data.startswith('reply_'))
 async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
-    target_user_id = int(callback_query.data.split('_'))
+    
+    # Исправлено: берем ровно второй элемент [1] (ID пользователя) из callback_data
+    target_user_id = int(callback_query.data.split('_')[1])
+    
     await state.update_data(reply_to_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_admin_reply)
     await callback_query.answer()
