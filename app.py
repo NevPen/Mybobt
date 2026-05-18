@@ -7,13 +7,16 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 BOT_TOKEN = "8721036900:AAEwk-tRJvgP0NVtsg3U3GOg1_3shj5nTB8"
-ADMIN_ID = 7604556074  # Ваш Telegram ID для получения уведомлений
+ADMIN_ID = 7604556074  # Ваш Telegram ID
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+banned_users = set()
+
 class SupportStates(StatesGroup):
-    waiting_for_topic = State()
+    waiting_for_topic = State()       
+    waiting_for_admin_reply = State() 
 
 def get_next_ticket_number():
     file_path = "tickets.txt"
@@ -51,12 +54,29 @@ def get_main_button():
     ])
     return keyboard
 
+def get_admin_inline_buttons(user_id: int):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="Заблокировать\u200b", callback_data=f"ban_{user_id}", icon_custom_emoji_id="5935757052042285202"),
+            InlineKeyboardButton(text="Ответить\u200b", callback_data=f"reply_{user_id}", icon_custom_emoji_id="6028346797368283073")
+        ]
+    ])
+    return keyboard
+
+@dp.message(lambda message: message.from_user.id in banned_users)
+@dp.callback_query(lambda callback: callback.from_user.id in banned_users)
+async def process_banned(event):
+    if isinstance(event, types.Message):
+        await event.answer("Вы заблокированы в техподдержке магазина.")
+    elif isinstance(event, types.CallbackQuery):
+        await event.answer("Вы заблокированы администрацией.", show_alert=True)
+
 @dp.message(Command("start"))
 async def start(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
 
-# --- ОБРАБОТЧИКИ НАЖАТИЙ НА КНОПКИ ---
+# --- ОБРАБОТЧИКИ НАЖАТИЙ НА КНОПКИ ПОЛЬЗОВАТЕЛЕМ ---
 
 @dp.callback_query(lambda c: c.data == 'shop')
 async def process_shop(callback_query: types.CallbackQuery):
@@ -78,12 +98,7 @@ async def process_rules(callback_query: types.CallbackQuery):
         "<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> <a href=\"https://telegra.ph\">Пользовательское соглашение</a>\n"
         "<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> <a href=\"https://telegra.ph\">Политика конфиденциальности</a>"
     )
-    await callback_query.message.edit_text(
-        text, 
-        reply_markup=get_main_button(), 
-        parse_mode="HTML",
-        link_preview_options=LinkPreviewOptions(is_disabled=True)
-    )
+    await callback_query.message.edit_text(text, reply_markup=get_main_button(), parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
 
 @dp.callback_query(lambda c: c.data == 'support')
 async def process_support(callback_query: types.CallbackQuery, state: FSMContext):
@@ -95,37 +110,33 @@ async def process_support(callback_query: types.CallbackQuery, state: FSMContext
     await callback_query.message.edit_text(text, reply_markup=None, parse_mode="HTML")
     await state.set_state(SupportStates.waiting_for_topic)
 
-# --- ПРИЕМ ТЕКСТА И ОТПРАВКА АДМИНУ ---
 @dp.message(SupportStates.waiting_for_topic)
 async def ticket_topic_received(message: types.Message, state: FSMContext):
     ticket_id = get_next_ticket_number()
-    
-    # Данные отправителя для формирования красивых ссылок
     user_id = message.from_user.id
     username = f"@{message.from_user.username}" if message.from_user.username else "Нет юзернейма"
     user_fullname = message.from_user.full_name
     
-    # 1. Текст, который увидит пользователь в боте
     user_text = (
         "<tg-emoji emoji-id=\"6039450962865688331\">📝</tg-emoji> Ваше сообщение было <b>отправлено в поддержку</b>, ожидайте <b>ответа</b>\n"
         f"<tg-emoji emoji-id=\"5870998024779468554\">🔢</tg-emoji> Номер вашей заявки: <code>#{ticket_id}</code>"
     )
     await message.answer(user_text, reply_markup=get_main_button(), parse_mode="HTML")
     
-    # 2. Формируем сообщение-уведомление для ВАС (администратора)
+    # Строго скопированный текст уведомления по вашему шаблону
     admin_text = (
-        f"🚨 <b>Новое обращение в поддержку! Tiket #{ticket_id}</b>\n\n"
-        f"👤 <b>Пользователь:</b> {user_fullname}\n"
-        f"🔗 <b>Юзернейм:</b> {username}\n"
-        f"🆔 <b>ID аккаунта:</b> <a href='tg://user?id={user_id}'>{user_id}</a>\n\n"
-        f"💬 <b>Текст обращения:</b>\n<i>{message.text}</i>"
+        f"<tg-emoji emoji-id=\"6039614175917903752\">✏️</tg-emoji> <b>Новое обращение в поддержку! Tiket #{ticket_id}</b>\n\n"
+        f"<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji><b>Пользователь:</b> {user_fullname}\n"
+        f"<tg-emoji emoji-id=\"5769289093221454192\">🔗</tg-emoji><b>Юзернейм:</b> {username}\n"
+        f"<tg-emoji emoji-id=\"5884366771913233289\">🆔</tg-emoji> <b>ID аккаунта:</b> {user_id}\n\n"
+        f"<tg-emoji emoji-id=\"6030833407339008632\">💬</tg-emoji> <b>Текст обращения:</b>\n"
+        f"<i>{message.text}</i>"
     )
     
-    # Отправляем уведомление вам в ЛС (чтобы сработало, вы должны быть один раз запущены в этом боте через /start)
     try:
-        await bot.send_message(chat_id=ADMIN_ID, text=admin_text, parse_mode="HTML")
+        await bot.send_message(chat_id=ADMIN_ID, text=admin_text, reply_markup=get_admin_inline_buttons(user_id), parse_mode="HTML")
     except Exception as e:
-        print(f"Не удалось отправить уведомление админу: {e}")
+        print(f"Ошибка уведомления админа: {e}")
         
     await state.clear()
 
@@ -135,7 +146,52 @@ async def process_main(callback_query: types.CallbackQuery, state: FSMContext):
     await state.clear()
     await callback_query.message.edit_text(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
 
-# -------------------------------------
+# --- ПАНЕЛЬ УПРАВЛЕНИЯ ДЛЯ АДМИНИСТРАТОРА ---
+
+@dp.callback_query(lambda c: c.data.startswith('ban_'))
+async def admin_ban_user(callback_query: types.CallbackQuery):
+    if callback_query.from_user.id != ADMIN_ID:
+        return await callback_query.answer("Доступ запрещен.")
+    
+    target_user_id = int(callback_query.data.split('_')[1])
+    banned_users.add(target_user_id)
+    
+    await callback_query.answer("Пользователь заблокирован!", show_alert=True)
+    await callback_query.message.reply(f"❌ Пользователь <code>{target_user_id}</code> успешно внесён в чёрный список.", parse_mode="HTML")
+
+@dp.callback_query(lambda c: c.data.startswith('reply_'))
+async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMContext):
+    if callback_query.from_user.id != ADMIN_ID:
+        return await callback_query.answer("Доступ запрещен.")
+    
+    target_user_id = int(callback_query.data.split('_')[1])
+    
+    await state.update_data(reply_to_user_id=target_user_id)
+    await state.set_state(SupportStates.waiting_for_admin_reply)
+    
+    await callback_query.answer()
+    await callback_query.message.reply("✍️ Напишите ответное сообщение для пользователя:")
+
+@dp.message(SupportStates.waiting_for_admin_reply)
+async def admin_send_reply_message(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    data = await state.get_data()
+    target_user_id = data.get("reply_to_user_id")
+    
+    reply_text = (
+        f"✉️ <b>Получен ответ от технической поддержки:</b>\n\n"
+        f"<i>{message.text}</i>"
+    )
+    
+    try:
+        await bot.send_message(chat_id=target_user_id, text=reply_text, parse_mode="HTML")
+        await message.answer("✅ Ответ успешно доставлен пользователю.")
+    except Exception as e:
+        await message.answer(f"❌ Ошибка отправки! Скорее всего, пользователь заблокировал бота: {e}")
+        
+    await state.clear()
 
 async def main():
     print("Бот запущен")
