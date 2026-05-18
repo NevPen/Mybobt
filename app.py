@@ -8,7 +8,6 @@ BOT_TOKEN = "8721036900:AAEwk-tRJvgP0NVtsg3U3GOg1_3shj5nTB8"
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Текст главного меню вынесен в отдельную переменную, чтобы не дублировать код
 START_TEXT = (
     "<tg-emoji emoji-id=\"6028315147754278596\">🙂</tg-emoji> Добро пожаловать в Morgodon Shop\n\n"
     "Для покупки товаров используйте кнопки ниже <tg-emoji emoji-id=\"6039802767931871481\">⬇️</tg-emoji>"
@@ -31,16 +30,14 @@ def get_main_button():
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    # Первое сообщение всегда отправляется через answer
     await message.answer(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
 
-# --- ОБРАБОТЧИКИ НАЖАТИЙ НА КНОПКИ (РЕДАКТИРОВАНИЕ СООБЩЕНИЯ) ---
+# --- ОБРАБОТЧИКИ НАЖАТИЙ НА КНОПКИ ---
 
 @dp.callback_query(lambda c: c.data == 'shop')
 async def process_shop(callback_query: types.CallbackQuery):
     await callback_query.answer()
     text = "<tg-emoji emoji-id=\"5920332557466997677\">🏪</tg-emoji> Вы перешли в Магазин. Выберите товар:"
-    # edit_text меняет старый текст и заменяет клавиатуру на кнопку "Главная"
     await callback_query.message.edit_text(text, reply_markup=get_main_button(), parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data == 'profile')
@@ -58,17 +55,17 @@ async def process_support(callback_query: types.CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'rules')
 async def process_rules(callback_query: types.CallbackQuery):
     await callback_query.answer()
+    # Заменен ID эмодзи для Политики конфиденциальности на щит с замочком
     text = (
         "<tg-emoji emoji-id=\"6032636795387121097\">🛡</tg-emoji> Перед использованием бота, пожалуйста прочтите правила указанные ниже <tg-emoji emoji-id=\"5963087934696459905\">⬇️</tg-emoji>\n\n"
         "<a href=\"https://telegra.ph\"><tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> Пользовательское соглашение</a>\n"
-        "<a href=\"https://telegra.ph\"><tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> Политика конфиденциальности</a>"
+        "<a href=\"https://telegra.ph\"><tg-emoji emoji-id=\"6032483861214972517\">🔐</tg-emoji> Политика конфиденциальности</a>"
     )
     await callback_query.message.edit_text(text, reply_markup=get_main_button(), parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data == 'main')
 async def process_main(callback_query: types.CallbackQuery):
     await callback_query.answer()
-    # Возвращаем исходный текст и главное меню кнопок обратно
     await callback_query.message.edit_text(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
 
 # -------------------------------------
