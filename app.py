@@ -335,7 +335,7 @@ async def start_review_process(callback_query: types.CallbackQuery, state: FSMCo
     
     # Исправленный текст с эмодзи в начале
     await callback_query.message.answer(
-        "<tg-emoji emoji-id=\"6028205772117118673\">⬆️</tg-emoji>Пожалуйста, напишите ваш отзыв одним сообщением.",
+        "<tg-emoji emoji-id=\"6028205772117118673\">⬆️</tg-emoji>Пожалуйста, напишите ваш отзыв одним сообщением.\n\nПример: ахуено все работает @morgodon",
         parse_mode="HTML"
     )
 
@@ -348,8 +348,8 @@ async def process_user_review(message: types.Message, state: FSMContext):
     
     # Формируем подпись для пересланного сообщения
     forward_caption = (
-        f"📦 <b>Товар:</b> {product_name}\n"
-        f"👤 <b>Отзыв от:</b> {username}"
+        f"<b>Товар:</b> {product_name}\n"
+        f"<b>Отзыв от:</b> {username}"
     )
 
     try:
@@ -373,7 +373,45 @@ async def process_user_review(message: types.Message, state: FSMContext):
         
     await state.clear()
 
-# --- ОСТАЛЬНАЯ ЛОГИКА БОТА ---
+@dp.callback_query(F.data.startswith("supp_reply_"))
+async def admin_support_reply_start(callback_query: types.CallbackQuery, state: FSMContext):
+    if callback_query.from_user.id not in ADMIN_IDS: return
+    await callback_query.answer()
+    target_id = int(callback_query.data.split("_")[2])
+    await state.update_data(reply_to_user=target_id)
+    await state.set_state(SupportStates.waiting_for_admin_reply)
+    await callback_query.message.answer("Введите ответ пользователю:")
+
+@dp.message(SupportStates.waiting_for_admin_reply)
+async def admin_support_reply_send(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS: return
+    data = await state.get_data()
+    target_id = data.get("reply_to_user")
+    reply_text = (
+        "<tg-emoji emoji-id=\"6039422865189638057\">📣</tg-emoji> <b>Ответ от поддержки:</b>\n\n"
+        f"{message.text}"
+    )
+    try:
+        await bot.send_message(chat_id=target_id, text=reply_text, parse_mode="HTML")
+        await message.answer("✅ Ответ отправлен.")
+    except Exception as e:
+        await message.answer(f"❌ Не удалось отправить: {e}")
+    await state.clear()
+
+@dp.callback_query(F.data.startswith("supp_ban_"))
+async def admin_support_ban(callback_query: types.CallbackQuery):
+    if callback_query.from_user.id not in ADMIN_IDS: return
+    await callback_query.answer()
+    target_id = int(callback_query.data.split("_")[2])
+    banned_users[target_id] = "Нарушение правил"
+    ban_text = (
+        "<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>Вы заблокированы администратором<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>\n"
+        "<tg-emoji emoji-id=\"6039422865189638057\">📣</tg-emoji>Причина: Нарушение правил"
+    )
+    try:
+        await bot.send_message(chat_id=target_id, text=ban_text, parse_mode="HTML")
+    except: pass
+    await callback_query.message.answer(f"⛔ Пользователь {target_id} заблокирован.")
 @dp.message(Command("boom"))
 async def admin_panel_cmd(message: types.Message, state: FSMContext):
     if message.from_user.id not in ADMIN_IDS: return
@@ -691,8 +729,12 @@ async def ticket_topic_received(message: types.Message, state: FSMContext):
         f"<tg-emoji emoji-id=\"6030833407339008632\">💬</tg-emoji> <b>Текст обращения:</b>\n"
         f"<i>{message.text}</i>"
     )
+    reply_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="<tg-emoji emoji-id=\"6028346797368283073\">✈️</tg-emoji>Ответить", callback_data=f"supp_reply_{user_id}")],
+        [InlineKeyboardButton(text="<tg-emoji emoji-id=\"5935757052042285202\">👁</tg-emoji>Заблокировать", callback_data=f"supp_ban_{user_id}")]
+    ])
     for admin_id in ADMIN_IDS:
-        try: await bot.send_message(chat_id=admin_id, text=admin_text, reply_markup=None, parse_mode="HTML")
+        try: await bot.send_message(chat_id=admin_id, text=admin_text, reply_markup=reply_kb, parse_mode="HTML")
         except: pass
     await state.clear()
 
