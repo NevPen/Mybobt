@@ -6,7 +6,6 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LinkPreviewOptions, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.exceptions import TelegramBadRequest
 
 # Токен вашего бота
 BOT_TOKEN = "8690556428:AAHV7WiJMeGKvmsOGYdNodK1BQZcf4S4aJA"
@@ -195,6 +194,7 @@ async def process_banned(event):
 @dp.message(F.photo | F.document)
 async def handle_receipt(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
+    # Игнорируем, если админ сейчас настраивает товар или пользователь пишет отзыв
     if current_state in [AdminStates.waiting_for_price, AdminStates.waiting_for_vip_link, AdminStates.waiting_for_key, ReviewStates.waiting_for_review]:
         return
     if message.from_user.id in ADMIN_IDS and current_state in [AdminStates.waiting_for_price, AdminStates.waiting_for_vip_link, AdminStates.waiting_for_key]:
@@ -262,10 +262,11 @@ async def admin_accept_receipt(callback_query: types.CallbackQuery):
     version_title = LABELS_VER.get(version_type, version_type)
     period_title = LABELS_PER.get(period, period)
 
+    # ИЗМЕНЕН ТЕКСТ ПОДТВЕРЖДЕНИЯ НА ТВОЙ ВАРИАНТ
     success_text = (
-        f"<tg-emoji emoji-id=\"6028315147754278596\">🙂</tg-emoji> Ваш чек оплаты был подтверждён.\n"
+        f"<tg-emoji emoji-id=\"6041720006973067267\">👍</tg-emoji>Ваш чек оплаты был подтверждён.\n"
         f"Спасибо за покупку <b>Lebro ({period_title}-{version_title})</b>\n\n"
-        f"<b>Ключ:</b> <code>{user_key}</code>"
+        f"Ключ: —- <code>{user_key}</code>"
     )
     
     success_kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -331,7 +332,8 @@ async def start_review_process(callback_query: types.CallbackQuery, state: FSMCo
     await state.update_data(review_product=f"Lebro ({p_title}-{v_title})")
     await state.set_state(ReviewStates.waiting_for_review)
     
-    await callback_query.message.answer("📝 Пожалуйста, напишите ваш отзыв одним сообщением (вы можете прикрепить скриншот):")
+    # ИЗМЕНЕН ТЕКСТ ПРОСЬБЫ НА ТВОЙ ВАРИАНТ
+    await callback_query.message.answer("<tg-emoji emoji-id=\"6028205772117118673\">⬆️</tg-emoji>Пожалуйста, напишите ваш отзыв одним сообщением.")
 
 @dp.message(ReviewStates.waiting_for_review)
 async def process_user_review(message: types.Message, state: FSMContext):
@@ -355,6 +357,7 @@ async def process_user_review(message: types.Message, state: FSMContext):
         review_text += "<i>[Без текста, только медиафайл]</i>"
 
     try:
+        # Отправляем в Telegram Канал отзывов
         if message.photo:
             await bot.send_photo(chat_id=REVIEWS_CHANNEL_ID, photo=message.photo[-1].file_id, caption=review_text, parse_mode="HTML")
         elif message.document:
@@ -362,7 +365,8 @@ async def process_user_review(message: types.Message, state: FSMContext):
         else:
             await bot.send_message(chat_id=REVIEWS_CHANNEL_ID, text=review_text, parse_mode="HTML")
             
-        await message.answer("❤️ Спасибо большое за ваш отзыв! Он опубликован в нашем канале.", reply_markup=get_main_button())
+        # ИЗМЕНЕН ТЕКСТ БЛАГОДАРНОСТИ НА ТВОЙ ВАРИАНТ
+        await message.answer("<tg-emoji emoji-id=\"6043847274210005137\">😝</tg-emoji>Спасибо большое за ваш отзыв", reply_markup=get_main_button())
     except Exception as e:
         await message.answer("❌ Не удалось отправить отзыв в канал. Возможно, бот не является там администратором.")
         print(f"Ошибка отзывов: {e}")
@@ -482,20 +486,13 @@ async def process_card_payment_details(callback_query: types.CallbackQuery, stat
         "<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji> Получатель: Дамир. Ф\n"
         "<tg-emoji emoji-id=\"5769126056262898415\">👛</tg-emoji> Номер: <code>+79373521278</code>\n\n"
         "<tg-emoji emoji-id=\"6032924188828767321\">➕</tg-emoji> В комментарии к переводу укажите свой юзернейм.\n"
-        "<tg-emoji emoji-id=\"5944753741512052670\">📷</tg-emoji> После оплаты отправьте боту скриншот оплаты."
+        "<tg-emoji emoji-id=\"5944753741512052670\">📷</tg-emoji> After payment, send the bot a payment screenshot."
     )
     
-    # ИСПРАВЛЕННАЯ ЛОГИКА: Сначала проверяем, есть ли текст, чтобы отредактировать caption или text без падений
-    if callback_query.message.photo or callback_query.message.document:
-        try:
-            await callback_query.message.edit_caption(caption=payment_details_text, reply_markup=get_after_card_payment_keyboard(version_type, period), parse_mode="HTML")
-        except TelegramBadRequest:
-            pass
-    else:
-        try:
-            await callback_query.message.edit_text(text=payment_details_text, reply_markup=get_after_card_payment_keyboard(version_type, period), parse_mode="HTML")
-        except TelegramBadRequest:
-            pass
+    try:
+         await callback_query.message.edit_caption(caption=payment_details_text, reply_markup=get_after_card_payment_keyboard(version_type, period), parse_mode="HTML")
+    except Exception:
+         await callback_query.message.edit_text(text=payment_details_text, reply_markup=get_after_card_payment_keyboard(version_type, period), parse_mode="HTML")
 
 # --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА ---
 @dp.callback_query(lambda c: c.data in ['adm_choose_vip', 'adm_choose_lite'])
