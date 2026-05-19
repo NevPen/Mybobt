@@ -7,7 +7,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LinkPrevie
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
-# Обновленный рабочий токен вашего бота
+# Токен вашего бота
 BOT_TOKEN = "8690556428:AAHV7WiJMeGKvmsOGYdNodK1BQZcf4S4aJA"
 ADMIN_ID = 7604556074  # Ваш Telegram ID
 
@@ -89,10 +89,11 @@ def get_lebro_versions():
         [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
+# Исправлено: Цены полностью удалены из текста инлайн-кнопок, расположение вертикальное
 def get_user_periods_keyboard(version_type):
     current_data = load_shop_data()
     version_items = current_data.get(version_type, {})
-    buttons_row = []
+    keyboard_structure = []
     
     labels = {
         "1_day": "1 день",
@@ -103,22 +104,17 @@ def get_user_periods_keyboard(version_type):
     
     for period, item_data in version_items.items():
         keys_list = item_data.get("keys", [])
-        price = item_data.get("price", "0")
         count = len(keys_list)
         
         if count > 0:  
-            button_text = f"{labels[period]} ({count}) — {price} руб.\u200b"
-            buttons_row.append(InlineKeyboardButton(
+            button_text = f"{labels[period]} ({count})\u200b"
+            keyboard_structure.append([InlineKeyboardButton(
                 text=button_text, 
                 callback_data=f"buy_{version_type}_{period}",
                 icon_custom_emoji_id="5836907383292436018"
-            ))
+            )])
             
-    keyboard_structure = []
-    if buttons_row:
-        keyboard_structure.append(buttons_row)
     keyboard_structure.append([InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")])
-    
     return InlineKeyboardMarkup(inline_keyboard=keyboard_structure)
 
 # КЛАВИАТУРЫ АДМИН-ПАНЕЛИ
@@ -150,14 +146,12 @@ def get_admin_inline_buttons(user_id: int):
         ]
     ])
 
-# --- ПРОВЕРКА НА БАН (ИСПРАВЛЕНО И ЗАКРЫТО) ---
+# --- ПРОВЕРКА НА БАН ---
 @dp.message(lambda message: message.from_user.id in banned_users)
 @dp.callback_query(lambda callback: callback.from_user.id in banned_users)
 async def process_banned(event):
     user_id = event.from_user.id
     reason = banned_users.get(user_id, "Не указана")
-    
-    # ИСПРАВЛЕНО: Полностью переписаны HTML теги, падения парсера больше не будет
     text_ban = (
         "<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>Вы заблокированы администратором<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>\n"
         f"<tg-emoji emoji-id=\"6039422865189638057\">📣</tg-emoji>Причина: {reason}"
@@ -222,29 +216,38 @@ async def user_select_version(callback_query: types.CallbackQuery):
         text = "<b>Выберите период подписки:</b>"
         await callback_query.message.answer(text, reply_markup=get_user_periods_keyboard(version_type), parse_mode="HTML")
 
+# Новая логика: Вывод полной информации о товаре при клике по периоду строго по вашему ТЗ
 @dp.callback_query(lambda c: c.data.startswith('buy_'))
-async def user_buy_product(callback_query: types.CallbackQuery):
+async def user_view_product_details(callback_query: types.CallbackQuery):
     await callback_query.answer()
     try:
         await callback_query.message.delete()
     except:
         pass
     parts = callback_query.data.split('_')
-    
-    version_type = f"{parts}_{parts}"  
-    period = "_".join(parts[3:])
+    version_type = f"{parts}_{parts}"  # lebro_vip / lebro_lite
+    period = "_".join(parts[3:])       # 1_day / 7_days / forever
     
     current_data = load_shop_data()
-    keys_list = current_data.get(version_type, {}).get(period, {}).get("keys", [])
+    item_data = current_data.get(version_type, {}).get(period, {})
     
-    if keys_list:
-        purchased_key = keys_list.pop(0)  
-        save_shop_data(current_data)  
-        text = f"🎉 <b>Успешная покупка!</b>\n\nВаш ключ: <code>{purchased_key}</code>"
-    else:
-        text = "<tg-emoji emoji-id=\"5920046907782074235\">📝</tg-emoji>Извините, этот товар только что закончился."
-        
-    await callback_query.message.answer(text, reply_markup=get_main_button(), parse_mode="HTML")
+    keys_list = item_data.get("keys", [])
+    price = item_data.get("price", "0")
+    count = len(keys_list)
+    
+    labels_ver = {"lebro_vip": "Vip", "lebro_lite": "Lite"}
+    labels_per = {"1_day": "на 1д", "7_days": "на 7д", "30_days": "на 30д", "forever": "Навсегда"}
+    
+    # Текст описания товара строго по вашему ТЗ
+    text_details = (
+        f"Выбран товар — Lebro ({labels_ver.get(version_type, 'Неизвестно')}) ({labels_per.get(period, period)})\n\n"
+        f"Товара в наличии — {count}\n"
+        f"Цена — {price} руб.\n\n"
+        "Для оплаты воспользуйтесь кнопками ниже"
+    )
+    
+    # Пока инлайн кнопки оплаты скрыты (по вашему запросу), выводим только Главную
+    await callback_query.message.answer(text_details, reply_markup=get_main_button(), parse_mode="HTML")
 
 # --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА ---
 
@@ -289,7 +292,9 @@ async def admin_price_received(message: types.Message, state: FSMContext):
     
     await state.update_data(item_price=message.text)
     await state.set_state(AdminStates.waiting_for_key)
-    await message.reply("напишите ключ:")
+    
+    # Изменено: Текст изменен строго по вашему новому ТЗ
+    await message.reply("ссылка вип канал:")
 
 @dp.message(AdminStates.waiting_for_key)
 async def admin_key_received(message: types.Message, state: FSMContext):
@@ -404,8 +409,6 @@ async def admin_ban_reason_received(message: types.Message, state: FSMContext):
     data = await state.get_data()
     target_user_id = data.get("ban_user_id")
     banned_users[target_user_id] = message.text
-    
-    # ИСПРАВЛЕНО: Тег в process_banned теперь полностью валидный, краша не будет
     text_ban = (
         "<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>Вы заблокированы администратором<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>\n"
         f"<tg-emoji emoji-id=\"6039422865189638057\">📣</tg-emoji>Причина: {message.text}"
