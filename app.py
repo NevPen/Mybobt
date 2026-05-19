@@ -20,9 +20,9 @@ dp = Dispatcher()
 banned_users = {}
 ticket_counter = 0
 
-# Словари для красивого вывода
-LABELS_VER = {"lebro_vip": "Vip", "lebro_lite": "Lite"}
-LABELS_PER = {"1_day": "1 день", "7_days": "Vip-7д", "30_days": "30 дней", "forever": "Навсегда"}
+# Словари для красивого вывода в нужном формате
+LABELS_VER = {"lebro_vip": "vip", "lebro_lite": "lite"}
+LABELS_PER = {"1_day": "1d", "7_days": "7d", "30_days": "30d", "forever": "forever"}
 
 # --- РАБОТА С БАЗОЙ ДАННЫХ ТОВАРОВ (JSON) ---
 DATA_FILE = "shop_data.json"
@@ -105,6 +105,7 @@ def get_user_periods_keyboard(version_type):
     version_items = current_data.get(version_type, {})
     keyboard_structure = []
     
+    # Кнопки выбора периода на базе Vip-7д
     labels = {
         "1_day": "1 день",
         "7_days": "Vip-7д",
@@ -161,7 +162,6 @@ def get_admin_periods_keyboard(version, prefix="add"):
             [InlineKeyboardButton(text="7 дней\u200b", callback_data=f"{prefix}_lite_7d")]
         ])
 
-# Кнопки под чеком для админа
 def get_receipt_admin_buttons(user_id: int, version: str, period: str):
     return InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -199,18 +199,16 @@ async def handle_receipt(message: types.Message, state: FSMContext):
     version_title = LABELS_VER.get(chosen_version, chosen_version)
     period_title = LABELS_PER.get(chosen_period, chosen_period)
 
-    # Исправлено: Однократный вывод текста сообщения строго с кастомным эмодзи
     user_reply_text = "<tg-emoji emoji-id=\"5870633910337015697\">✅</tg-emoji> Чек отправлен на проверку. Ожидайте подтверждения."
     await message.reply(user_reply_text, parse_mode="HTML")
     
-    # Сообщение админам
     username = f"@{message.from_user.username}" if message.from_user.username else "Нет юзернейма"
     info_text = (
         f"<tg-emoji emoji-id=\"6039573425268201570\">📤</tg-emoji> <b>Получен новый чек на проверку!</b>\n\n"
         f"<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji> <b>Пользователь:</b> {message.from_user.full_name}\n"
         f"<tg-emoji emoji-id=\"6028171274939797252\">🔗</tg-emoji> <b>Юзернейм:</b> {username}\n"
         f"<tg-emoji emoji-id=\"6032693626394382504\">👤</tg-emoji> <b>ID:</b> <code>{message.from_user.id}</code>\n\n"
-        f"📦 <b>Товар:</b> Lebro {version_title} ({period_title})"
+        f"📦 <b>Товар:</b> Lebro ({period_title}-{version_title})"
     )
     
     reply_markup = get_receipt_admin_buttons(message.from_user.id, chosen_version, chosen_period)
@@ -227,7 +225,6 @@ async def handle_receipt(message: types.Message, state: FSMContext):
     await state.clear()
 
 # --- ЛОГИКА ПОДТВЕРЖДЕНИЯ И ОТКАЗА ЧЕКОВ ---
-
 @dp.callback_query(F.data.startswith("rcpt_accept_"))
 async def admin_accept_receipt(callback_query: types.CallbackQuery):
     if callback_query.from_user.id not in ADMIN_IDS: return
@@ -248,7 +245,7 @@ async def admin_accept_receipt(callback_query: types.CallbackQuery):
     vip_link = item_data.get("vip_link", "Ссылка отсутствует")
 
     if not keys_list:
-        await callback_query.message.reply("❌ Ошибка! В базе закончились ключи для этого товара. Пополните базу ключей.")
+        await callback_query.message.reply("❌ Ошибка! В базе закончились ключи.")
         return
 
     user_key = keys_list.pop(0)
@@ -257,10 +254,9 @@ async def admin_accept_receipt(callback_query: types.CallbackQuery):
     version_title = LABELS_VER.get(version_type, version_type)
     period_title = LABELS_PER.get(period, period)
 
-    # Исправлено: все лишние эмодзи убраны из текста выдачи
     success_text = (
         f"Ваш чек оплаты был подтверждён.\n"
-        f"Спасибо за покупку <b>Lebro {version_title} ({period_title})</b>\n\n"
+        f"Спасибо за покупку <b>Lebro ({period_title}-{version_title})</b>\n\n"
         f"Ключ: {user_key}\n"
         f"Приват: {vip_link}"
     )
@@ -313,7 +309,6 @@ async def admin_reason_received(message: types.Message, state: FSMContext):
     await state.clear()
 
 # --- ОСТАЛЬНАЯ ЛОГИКА БОТА ---
-
 @dp.message(Command("boom"))
 async def admin_panel_cmd(message: types.Message, state: FSMContext):
     if message.from_user.id not in ADMIN_IDS: return
@@ -380,10 +375,12 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     price = item_data.get("price", "0")
     count = len(keys_list)
     
-    labels_ver = {"lebro_vip": "Vip", "lebro_lite": "Lite"}
+    v_title = LABELS_VER.get(version_type, version_type)
+    p_title = LABELS_PER.get(period, period)
     
+    # ИСПРАВЛЕНО ЗДЕСЬ: формат Lebro (1d-vip)
     text_details = (
-        f"<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji>Выбран товар - <b>Lebro Cheat ({LABELS_PER.get(period)}-{labels_ver.get(version_type)})</b>\n\n"
+        f"<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji>Выбран товар - <b>Lebro ({p_title}-{v_title})</b>\n\n"
         f"<tg-emoji emoji-id=\"6039348811363520645\">📂</tg-emoji>Товара в наличии - <code>{count}</code>\n"
         f"<tg-emoji emoji-id=\"5904462880941545555\">🪙</tg-emoji>Цена - <code>{price} руб</code>\n\n"
         "Для оплаты воспользуйтесь кнопками ниже<tg-emoji emoji-id=\"5963087934696459905\">⬇️</tg-emoji>"
@@ -414,15 +411,17 @@ async def process_card_payment_details(callback_query: types.CallbackQuery, stat
     item_data = current_data.get(version_type, {}).get(period, {})
     price = item_data.get("price", "0")
     
-    labels_ver = {"lebro_vip": "Vip", "lebro_lite": "Lite"}
+    v_title = LABELS_VER.get(version_type, version_type)
+    p_title = LABELS_PER.get(period, period)
     
+    # ИСПРАВЛЕНО ЗДЕСЬ: формат Товар: Lebro (1d-vip)
     payment_details_text = (
         "<tg-emoji emoji-id=\"5776233299424843260\">🌐</tg-emoji><b>Перевод на карту</b>\n\n"
-        f"<tg-emoji emoji-id=\"6041730074376410123\">📥</tg-emoji>Товар: {LABELS_PER.get(period)}-{labels_ver.get(version_type)}\n"
+        f"<tg-emoji emoji-id=\"6041730074376410123\">📥</tg-emoji>Товар: Lebro ({p_title}-{v_title})\n"
         f"<tg-emoji emoji-id=\"5904462880941545555\">🪙</tg-emoji>Цена: {price} руб\n\n"
         "<tg-emoji emoji-id=\"5904359114531675993\">💰</tg-emoji>Банк: Сбер\n"
         "<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji>Получатель: Дамир. Ф\n"
-        "<tg-emoji emoji-id=\"5769126056262898415\">👛</tg-emoji>Номер: <code>+79373521278</code>\n\n"
+        "<tg-emoji emoji-id=\"5769126056262898415\">👛</👛>Номер: <code>+79373521278</code>\n\n"
         "<tg-emoji emoji-id=\"6032924188828767321\">➕</tg-emoji>В комментарии к переводу укажите свой юзернейм.\n"
         "<tg-emoji emoji-id=\"5944753741512052670\">📷</tg-emoji>После оплаты отправьте боту скриншот оплаты."
     )
