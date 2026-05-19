@@ -127,22 +127,23 @@ def get_payment_keyboard(version_type, period):
 # КЛАВИАТУРЫ АДМИН-ПАНЕЛИ
 def get_admin_main_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Vip\u200b", callback_data="adm_choose_vip", icon_custom_emoji_id="5893236738372932548")],
-        [InlineKeyboardButton(text="Lite\u200b", callback_data="adm_choose_lite", icon_custom_emoji_id="5893057118545646106")]
+        [InlineKeyboardButton(text="➕ Добавить VIP\u200b", callback_data="adm_choose_vip")],
+        [InlineKeyboardButton(text="➕ Добавить LITE\u200b", callback_data="adm_choose_lite")],
+        [InlineKeyboardButton(text="❌ Удалить товар\u200b", callback_data="adm_delete_main")]
     ])
 
-def get_admin_periods_keyboard(version):
-    if version == "vip":
+def get_admin_periods_keyboard(version, prefix="add"):
+    if version == "vip" or version == "lebro_vip":
         return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="1 день\u200b", callback_data="add_vip_1d", icon_custom_emoji_id="5836907383292436018")],
-            [InlineKeyboardButton(text="7 дней\u200b", callback_data="add_vip_7d", icon_custom_emoji_id="5836907383292436018")],
-            [InlineKeyboardButton(text="30 дней\u200b", callback_data="add_vip_30d", icon_custom_emoji_id="5836907383292436018")],
-            [InlineKeyboardButton(text="Навсегда\u200b", callback_data="add_vip_forever", icon_custom_emoji_id="5836907383292436018")]
+            [InlineKeyboardButton(text="1 день\u200b", callback_data=f"{prefix}_vip_1d")],
+            [InlineKeyboardButton(text="7 дней\u200b", callback_data=f"{prefix}_vip_7d")],
+            [InlineKeyboardButton(text="30 дней\u200b", callback_data=f"{prefix}_vip_30d")],
+            [InlineKeyboardButton(text="Навсегда\u200b", callback_data=f"{prefix}_vip_forever")]
         ])
     else:
         return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="1 день\u200b", callback_data="add_lite_1d", icon_custom_emoji_id="5836907383292436018")],
-            [InlineKeyboardButton(text="7 дней\u200b", callback_data="add_lite_7d", icon_custom_emoji_id="5836907383292436018")]
+            [InlineKeyboardButton(text="1 день\u200b", callback_data=f"{prefix}_lite_1d")],
+            [InlineKeyboardButton(text="7 дней\u200b", callback_data=f"{prefix}_lite_7d")]
         ])
 
 def get_admin_inline_buttons(user_id: int):
@@ -173,7 +174,7 @@ async def process_banned(event):
 async def admin_panel_cmd(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID: return
     await state.clear()
-    await message.answer("Добавить версии lebro", reply_markup=get_admin_main_keyboard())
+    await message.answer("Панель управления магазином:", reply_markup=get_admin_main_keyboard())
 
 # --- КОМАНДА /START ---
 @dp.message(Command("start"))
@@ -258,7 +259,6 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     
     await callback_query.message.answer(text_details, reply_markup=get_payment_keyboard(version_type, period), parse_mode="HTML")
 
-# Обработка нажатия на пустую кнопку (просто чтобы бот не выдавал ошибку)
 @dp.callback_query(lambda c: c.data == 'none')
 async def process_none(callback_query: types.CallbackQuery):
     await callback_query.answer()
@@ -274,7 +274,7 @@ async def admin_select_version(callback_query: types.CallbackQuery):
     except:
         pass
     version = "vip" if callback_query.data == "adm_choose_vip" else "lite"
-    await callback_query.message.answer(f"Выберите период для настройки версии {version.upper()}:", reply_markup=get_admin_periods_keyboard(version))
+    await callback_query.message.answer(f"Выберите период для настройки версии {version.upper()}:", reply_markup=get_admin_periods_keyboard(version, prefix="add"))
 
 # Карта сопоставления инлайн-кнопок админки с базой JSON
 ADMIN_CALLBACK_MAP = {
@@ -339,6 +339,106 @@ async def admin_key_received(message: types.Message, state: FSMContext):
         await message.answer("❌ Произошла ошибка внутренней структуры категорий.")
         
     await state.clear()
+
+# --- СИСТЕМА УДАЛЕНИЯ ТОВАРОВ (КЛЮЧЕЙ) ---
+
+@dp.callback_query(lambda c: c.data == 'adm_delete_main')
+async def admin_delete_main_menu(callback_query: types.CallbackQuery):
+    if callback_query.from_user.id != ADMIN_ID: return
+    await callback_query.answer()
+    try:
+         await callback_query.message.delete()
+    except:
+         pass
+    
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Удалить из VIP", callback_data="del_ver_vip")],
+        [InlineKeyboardButton(text="Удалить из LITE", callback_data="del_ver_lite")]
+    ])
+    await callback_query.message.answer("Из какой версии вы хотите удалить товар?", reply_markup=kb)
+
+@dp.callback_query(lambda c: c.data in ['del_ver_vip', 'del_ver_lite'])
+async def admin_delete_select_period(callback_query: types.CallbackQuery):
+    if callback_query.from_user.id != ADMIN_ID: return
+    await callback_query.answer()
+    try:
+         await callback_query.message.delete()
+    except:
+         pass
+    
+    version = "vip" if callback_query.data == "del_ver_vip" else "lite"
+    await callback_query.message.answer(f"Выберите период для удаления ключей версии {version.upper()}:", reply_markup=get_admin_periods_keyboard(version, prefix="del"))
+
+ADMIN_DEL_CALLBACK_MAP = {
+    "del_vip_1d": ("lebro_vip", "1_day"),
+    "del_vip_7d": ("lebro_vip", "7_days"),
+    "del_vip_30d": ("lebro_vip", "30_days"),
+    "del_vip_forever": ("lebro_vip", "forever"),
+    "del_lite_1d": ("lebro_lite", "1_day"),
+    "del_lite_7d": ("lebro_lite", "7_days")
+}
+
+@dp.callback_query(lambda c: c.data in ADMIN_DEL_CALLBACK_MAP.keys())
+async def admin_list_keys_for_deletion(callback_query: types.CallbackQuery):
+    if callback_query.from_user.id != ADMIN_ID: return
+    await callback_query.answer()
+    try:
+         await callback_query.message.delete()
+    except:
+         pass
+    
+    version_type, period = ADMIN_DEL_CALLBACK_MAP[callback_query.data]
+    current_data = load_shop_data()
+    keys_list = current_data.get(version_type, {}).get(period, {}).get("keys", [])
+    
+    if not keys_list:
+        await callback_query.message.answer("В этой категории нет доступных ключей.", reply_markup=get_main_button())
+        return
+        
+    kb_structure = []
+    # Строим кнопки для каждого ключа. В callback_data передаем индексы, чтобы точно знать что удалять
+    for idx, key in enumerate(keys_list):
+        kb_structure.append([InlineKeyboardButton(
+            text=f"🗑 Удалить: {key}", 
+            callback_data=f"confirm_del_{version_type}_{period}_{idx}"
+        )])
+        
+    kb_structure.append([InlineKeyboardButton(text="Назад в панель", callback_data="adm_delete_main")])
+    
+    await callback_query.message.answer("Выберите ключ, который хотите безвозвратно удалить:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_structure))
+
+@dp.callback_query(lambda c: c.data.startswith('confirm_del_'))
+async def admin_execute_deletion(callback_query: types.CallbackQuery):
+    if callback_query.from_user.id != ADMIN_ID: return
+    await callback_query.answer()
+    
+    # Парсим структуру callback данных: confirm_del_ {version_type} _ {period} _ {idx}
+    data_parts = callback_query.data.replace("confirm_del_", "").split("_")
+    
+    # Название версии может содержать нижнее подчеркивание (lebro_vip / lebro_lite)
+    if "vip" in data_parts[1]:
+        version_type = f"{data_parts[0]}_{data_parts[1]}"
+        period = f"{data_parts[2]}_{data_parts[3]}" if data_parts[2] == "1" or data_parts[2] == "7" or data_parts[2] == "30" else data_parts[2]
+        idx = int(data_parts[-1])
+    else:
+        version_type = f"{data_parts[0]}_{data_parts[1]}"
+        period = f"{data_parts[2]}_{data_parts[3]}"
+        idx = int(data_parts[-1])
+        
+    current_data = load_shop_data()
+    try:
+        removed_key = current_data[version_type][period]["keys"].pop(idx)
+        save_shop_data(current_data)
+        await callback_query.answer(f"Удален ключ: {removed_key}", show_alert=True)
+    except Exception as e:
+        await callback_query.answer("Ошибка: ключ уже удален или изменен", show_alert=True)
+        
+    # Возвращаем админа в главное меню админки
+    try:
+         await callback_query.message.delete()
+    except:
+         pass
+    await callback_query.message.answer("Панель управления магазином:", reply_markup=get_admin_main_keyboard())
 
 # --- РАЗДЕЛ ПРОФИЛЬ ---
 
