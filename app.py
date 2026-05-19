@@ -1,3 +1,4 @@
+
 import asyncio
 import os
 import json
@@ -124,7 +125,6 @@ def get_admin_main_keyboard():
         [InlineKeyboardButton(text="Lite\u200b", callback_data="adm_choose_lite", icon_custom_emoji_id="5893057118545646106")]
     ])
 
-# ИСПРАВЛЕНО: callback_data кнопок теперь строго совпадает с ADMIN_CALLBACK_MAP
 def get_admin_periods_keyboard(version):
     if version == "vip":
         return InlineKeyboardMarkup(inline_keyboard=[
@@ -284,7 +284,6 @@ async def admin_select_period(callback_query: types.CallbackQuery, state: FSMCon
     except:
         pass
     
-    # ИСПРАВЛЕНО: Теперь навигация по дням в админке работает безотказно
     version_type, period = ADMIN_CALLBACK_MAP[callback_query.data]
     await state.update_data(target_version=version_type, target_period=period)
     await state.set_state(AdminStates.waiting_for_price)
@@ -407,10 +406,11 @@ async def ticket_topic_received(message: types.Message, state: FSMContext):
         print(f"Ошибка уведомления админа: {e}")
     await state.clear()
 
+# ИСПРАВЛЕНО: Правильный срез строки с помощью .split('_')[1] вместо конвертации целого списка
 @dp.callback_query(lambda c: c.data.startswith('ban_'))
 async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
-    target_user_id = int(callback_query.data.split('_'))
+    target_user_id = int(callback_query.data.split('_')[1])
     await state.update_data(ban_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_ban_reason)
     await callback_query.answer()
@@ -432,10 +432,11 @@ async def admin_ban_reason_received(message: types.Message, state: FSMContext):
         print(f"Не удалось отправить карточку бана: {e}")
     await state.clear()
 
+# ИСПРАВЛЕНО: Правильный срез строки с помощью .split('_')[1] вместо конвертации целого списка
 @dp.callback_query(lambda c: c.data.startswith('reply_'))
 async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
-    target_user_id = int(callback_query.data.split('_'))
+    target_user_id = int(callback_query.data.split('_')[1])
     await state.update_data(reply_to_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_admin_reply)
     await callback_query.answer()
@@ -477,3 +478,4 @@ if __name__ == "__main__":
         await bot.delete_webhook(drop_pending_updates=True)
         await main()
     asyncio.run(main_runner())
+
