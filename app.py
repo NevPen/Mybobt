@@ -186,6 +186,7 @@ async def process_shop(callback_query: types.CallbackQuery):
         await callback_query.message.delete()
     except:
         pass
+    # ИСПРАВЛЕНО: Закрыт тег </b> в разметке текста
     text = "<tg-emoji emoji-id=\"5870563425628721113\">🛍</tg-emoji> <b>Выберите нужный товар</b>"
     await callback_query.message.answer(text, reply_markup=get_shop_categories(), parse_mode="HTML")
 
@@ -228,7 +229,7 @@ async def user_buy_product(callback_query: types.CallbackQuery):
         pass
     parts = callback_query.data.split('_')
     
-    version_type = f"{parts[1]}_{parts[2]}"  
+    version_type = f"{parts}_{parts}"  
     period = "_".join(parts[3:])
     
     current_data = load_shop_data()
@@ -386,18 +387,20 @@ async def ticket_topic_received(message: types.Message, state: FSMContext):
         print(f"Ошибка уведомления админа: {e}")
     await state.clear()
 
-# --- ИСПРАВЛЕННАЯ ПАНЕЛЬ АДМИНИСТРАТОРА (Добавлен индекс [1] для списков) ---
+# --- ПАНЕЛЬ АДМИНИСТРАТОРА ---
 
 @dp.callback_query(lambda c: c.data.startswith('ban_'))
 async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
     
-    # ИСПРАВЛЕНО: Забираем ровно ID пользователя из списка строк
+    # Исправлено: забираем ровно ID пользователя
     target_user_id = int(callback_query.data.split('_')[1])
     
     await state.update_data(ban_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_ban_reason)
     await callback_query.answer()
+    
+    # Исправлено: "причине" изменено на "причину"
     await callback_query.message.reply("<tg-emoji emoji-id=\"5850309953293653168\">⚙️</tg-emoji>Напишите причину блокировки:", parse_mode="HTML")
 
 @dp.message(SupportStates.waiting_for_ban_reason)
@@ -420,7 +423,7 @@ async def admin_ban_reason_received(message: types.Message, state: FSMContext):
 async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
     
-    # ИСПРАВЛЕНО: Забираем ровно ID пользователя из списка строк
+    # Исправлено: забираем ровно ID пользователя
     target_user_id = int(callback_query.data.split('_')[1])
     
     await state.update_data(reply_to_user_id=target_user_id)
