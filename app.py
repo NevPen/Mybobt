@@ -1,4 +1,3 @@
-
 import asyncio
 import os
 import json
@@ -11,8 +10,8 @@ from aiogram.fsm.state import State, StatesGroup
 # Токен вашего бота
 BOT_TOKEN = "8690556428:AAHV7WiJMeGKvmsOGYdNodK1BQZcf4S4aJA"
 
-# ID канала для отзывов (Обязательно замени на ID своего канала, должен начинаться с -100)
-REVIEWS_CHANNEL_ID = -1002345678901  
+# ⚠️ ОБЯЗАТЕЛЬНО ЗАМЕНИ НА ID СВОЕГО КАНАЛА ОТЗЫВОВ (начинается с -100)
+REVIEWS_CHANNEL_ID = -1002942694197  # <--- вот здесь вставь свой реальный ID
 
 # Список ID администраторов (Дамир и morgodon)
 ADMIN_IDS = [7604556074, 6100964004]
@@ -26,7 +25,7 @@ ticket_counter = 0
 
 # Словари для красивого вывода в нужном формате
 LABELS_VER = {"lebro_vip": "vip", "lebro_lite": "lite"}
-LABELS_PER = {"1_day": "1d", "7_days": "7d", "30_days": "30d", "forever": "forever"}
+LABELS_PER = {"1_day": "1D", "7_days": "7D", "30_days": "30D", "forever": "forever"}
 
 # --- РАБОТА С БАЗОЙ ДАННЫХ ТОВАРОВ (JSON) ---
 DATA_FILE = "shop_data.json"
@@ -112,10 +111,11 @@ def get_user_periods_keyboard(version_type):
     version_items = current_data.get(version_type, {})
     keyboard_structure = []
     
+    # Изменённые названия: 1D, 7D, 30D, Навсегда
     labels = {
-        "1_day": "1 день",
-        "7_days": "Vip-7д",
-        "30_days": "30 дней",
+        "1_day": "1D",
+        "7_days": "7D",
+        "30_days": "30D",
         "forever": "Навсегда"
     }
     
@@ -333,7 +333,10 @@ async def start_review_process(callback_query: types.CallbackQuery, state: FSMCo
     await state.update_data(review_product=f"Lebro ({p_title}-{v_title})")
     await state.set_state(ReviewStates.waiting_for_review)
     
-    await callback_query.message.answer("<tg-emoji emoji-id=\"6028205772117118673\">⬆️</tg-emoji>Пожалуйста, напишите ваш отзыв одним сообщением.")
+    # Исправленный текст с эмодзи в начале
+    await callback_query.message.answer(
+        "<tg-emoji emoji-id=\"6028205772117118673\">⬆️</tg-emoji>Пожалуйста, напишите ваш отзыв одним сообщением."
+    )
 
 @dp.message(ReviewStates.waiting_for_review)
 async def process_user_review(message: types.Message, state: FSMContext):
@@ -364,7 +367,7 @@ async def process_user_review(message: types.Message, state: FSMContext):
             
         await message.answer("<tg-emoji emoji-id=\"6043847274210005137\">😝</tg-emoji>Спасибо большое за ваш отзыв", reply_markup=get_main_button())
     except Exception as e:
-        await message.answer("❌ Не удалось отправить отзыв в канал. Возможно, бот не является там администратором.")
+        await message.answer("❌ Не удалось отправить отзыв в канал. Возможно, бот не является там администратором или неверный ID канала.")
         print(f"Ошибка отзывов: {e}")
         
     await state.clear()
