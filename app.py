@@ -159,24 +159,12 @@ def get_admin_periods_keyboard(version, prefix="add"):
             [InlineKeyboardButton(text="7 дней\u200b", callback_data=f"{prefix}_lite_7d")]
         ])
 
-# Кнопки под чеком для админа (Добавлена проверка оплаты)
+# Кнопки под чеком для админа (Кнопки "Заблокировать" и "Ответить" убраны)
 def get_receipt_admin_buttons(user_id: int, version: str, period: str):
     return InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"rcpt_accept_{user_id}_{version}_{period}"),
             InlineKeyboardButton(text="❌ Отказать", callback_data=f"rcpt_decline_{user_id}_{version}_{period}")
-        ],
-        [
-            InlineKeyboardButton(text="Заблокировать\u200b", callback_data=f"ban_{user_id}", icon_custom_emoji_id="5935757052042285202"),
-            InlineKeyboardButton(text="Ответить\u200b", callback_data=f"reply_{user_id}", icon_custom_emoji_id="6028346797368283073")
-        ]
-    ])
-
-def get_admin_inline_buttons(user_id: int):
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="Заблокировать\u200b", callback_data=f"ban_{user_id}", icon_custom_emoji_id="5935757052042285202"),
-            InlineKeyboardButton(text="Ответить\u200b", callback_data=f"reply_{user_id}", icon_custom_emoji_id="6028346797368283073")
         ]
     ])
 
@@ -222,7 +210,7 @@ async def handle_receipt(message: types.Message, state: FSMContext):
         f"📦 <b>Товар:</b> Lebro {version_title} ({period_title})"
     )
     
-    # Передаем клавиатуру с кнопками "Подтвердить" и "Отказать"
+    # Передаем клавиатуру только с кнопками "Подтвердить" и "Отказать"
     reply_markup = get_receipt_admin_buttons(message.from_user.id, chosen_version, chosen_period)
     
     if message.photo:
@@ -451,7 +439,7 @@ async def process_card_payment_details(callback_query: types.CallbackQuery, stat
 async def admin_select_version(callback_query: types.CallbackQuery):
     if callback_query.from_user.id != ADMIN_ID: return
     await callback_query.answer()
-    try: Richmond = callback_query.message.delete()
+    try: callback_query.message.delete()
     except: pass
     version = "vip" if callback_query.data == "adm_choose_vip" else "lite"
     await callback_query.message.answer(f"Выберите период для настройки версии {version.upper()}:", reply_markup=get_admin_periods_keyboard(version, prefix="add"))
@@ -643,7 +631,7 @@ async def ticket_topic_received(message: types.Message, state: FSMContext):
         f"<tg-emoji emoji-id=\"6030833407339008632\">💬</tg-emoji> <b>Текст обращения:</b>\n"
         f"<i>{message.text}</i>"
     )
-    try: await bot.send_message(chat_id=ADMIN_ID, text=admin_text, reply_markup=get_admin_inline_buttons(user_id), parse_mode="HTML")
+    try: await bot.send_message(chat_id=ADMIN_ID, text=admin_text, reply_markup=None, parse_mode="HTML")
     except: pass
     await state.clear()
 
