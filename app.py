@@ -105,7 +105,6 @@ def get_user_periods_keyboard(version_type):
     version_items = current_data.get(version_type, {})
     keyboard_structure = []
     
-    # Кнопки выбора периода на базе Vip-7д
     labels = {
         "1_day": "1 день",
         "7_days": "Vip-7д",
@@ -378,7 +377,6 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     v_title = LABELS_VER.get(version_type, version_type)
     p_title = LABELS_PER.get(period, period)
     
-    # ИСПРАВЛЕНО ЗДЕСЬ: формат Lebro (1d-vip)
     text_details = (
         f"<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji>Выбран товар - <b>Lebro ({p_title}-{v_title})</b>\n\n"
         f"<tg-emoji emoji-id=\"6039348811363520645\">📂</tg-emoji>Товара в наличии - <code>{count}</code>\n"
@@ -414,16 +412,16 @@ async def process_card_payment_details(callback_query: types.CallbackQuery, stat
     v_title = LABELS_VER.get(version_type, version_type)
     p_title = LABELS_PER.get(period, period)
     
-    # ИСПРАВЛЕНО ЗДЕСЬ: формат Товар: Lebro (1d-vip)
+    # ТУТ ВСЕ ОШИБКИ HTML ИСПРАВЛЕНЫ, ТЕГИ ЗАКРЫВАЮТСЯ КОРРЕКТНО
     payment_details_text = (
-        "<tg-emoji emoji-id=\"5776233299424843260\">🌐</tg-emoji><b>Перевод на карту</b>\n\n"
-        f"<tg-emoji emoji-id=\"6041730074376410123\">📥</tg-emoji>Товар: Lebro ({p_title}-{v_title})\n"
-        f"<tg-emoji emoji-id=\"5904462880941545555\">🪙</tg-emoji>Цена: {price} руб\n\n"
-        "<tg-emoji emoji-id=\"5904359114531675993\">💰</tg-emoji>Банк: Сбер\n"
-        "<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji>Получатель: Дамир. Ф\n"
-        "<tg-emoji emoji-id=\"5769126056262898415\">👛</👛>Номер: <code>+79373521278</code>\n\n"
-        "<tg-emoji emoji-id=\"6032924188828767321\">➕</tg-emoji>В комментарии к переводу укажите свой юзернейм.\n"
-        "<tg-emoji emoji-id=\"5944753741512052670\">📷</tg-emoji>После оплаты отправьте боту скриншот оплаты."
+        "<tg-emoji emoji-id=\"5776233299424843260\">🌐</tg-emoji> <b>Перевод на карту</b>\n\n"
+        f"<tg-emoji emoji-id=\"6041730074376410123\">📥</tg-emoji> Товар: Lebro ({p_title}-{v_title})\n"
+        f"<tg-emoji emoji-id=\"5904462880941545555\">🪙</tg-emoji> Цена: {price} руб\n\n"
+        "<tg-emoji emoji-id=\"5904359114531675993\">💰</tg-emoji> Банк: Сбер\n"
+        "<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji> Получатель: Дамир. Ф\n"
+        "<tg-emoji emoji-id=\"5769126056262898415\">👛</tg-emoji> Номер: <code>+79373521278</code>\n\n"
+        "<tg-emoji emoji-id=\"6032924188828767321\">➕</tg-emoji> В комментарии к переводу укажите свой юзернейм.\n"
+        "<tg-emoji emoji-id=\"5944753741512052670\">📷</tg-emoji> После оплаты отправьте боту скриншот оплаты."
     )
     
     try:
