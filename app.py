@@ -124,9 +124,9 @@ def get_payment_keyboard(version_type, period):
         [InlineKeyboardButton(text="Назад\u200b", callback_data=f"ver_{version_type}", icon_custom_emoji_id="6039519841256214245")]
     ])
 
+# ИСПРАВЛЕНО: Удалена кнопка Telegram Stars под реквизитами
 def get_after_card_payment_keyboard(version_type, period):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Telegram Stars", url="https://t.me/morgodon", icon_custom_emoji_id="6028338546736107668")],
         [InlineKeyboardButton(text="Назад\u200b", callback_data=f"buy_{version_type}_{period}", icon_custom_emoji_id="6039519841256214245")]
     ])
 
@@ -187,6 +187,42 @@ async def admin_panel_cmd(message: types.Message, state: FSMContext):
 async def start(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
+
+# --- ОБРАБОТКА ПРИСЛАННЫХ ЧЕКОВ (ФОТО / ДОКУМЕНТЫ) ---
+@dp.message(F.photo | F.document)
+async def handle_receipt(message: types.Message):
+    # Если это админ отправляет файлы в процессе настройки, не перехватываем
+    if message.from_user.id == ADMIN_ID:
+        return
+
+    # Ответ пользователю
+    await message.reply("⏳ Чек отправлен на проверку. Ожидайте подтверждения.")
+    
+    # Пересылка чека админу с информацией о покупателе
+    username = f"@{message.from_user.username}" if message.from_user.username else "Нет юзернейма"
+    info_text = (
+        f"🧾 <b>Получен новый чек на проверку!</b>\n\n"
+        f"👤 <b>Пользователь:</b> {message.from_user.full_name}\n"
+        f"🔗 <b>Юзернейм:</b> {username}\n"
+        f"🆔 <b>ID:</b> <code>{message.from_user.id}</code>"
+    )
+    
+    if message.photo:
+        await bot.send_photo(
+            chat_id=ADMIN_ID, 
+            photo=message.photo[-1].file_id, 
+            caption=info_text, 
+            reply_markup=get_admin_inline_buttons(message.from_user.id),
+            parse_mode="HTML"
+        )
+    elif message.document:
+        await bot.send_document(
+            chat_id=ADMIN_ID, 
+            document=message.document.file_id, 
+            caption=info_text, 
+            reply_markup=get_admin_inline_buttons(message.from_user.id),
+            parse_mode="HTML"
+        )
 
 # --- ЛОГИКА ВЗАИМОДЕЙСТВИЯ С МАГАЗИНОМ ---
 
@@ -256,7 +292,6 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     labels_ver = {"lebro_vip": "Vip", "lebro_lite": "Lite"}
     labels_per = {"1_day": "1D", "7_days": "7D", "30_days": "30D", "forever": "Навсегда"}
     
-    # Исправлено 'in' на 'в' и убрана лишняя точка после цены
     text_details = (
         f"<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji>Выбран товар - <b>Lebro Cheat ({labels_per.get(period)}-{labels_ver.get(version_type)})</b>\n\n"
         f"<tg-emoji emoji-id=\"6039348811363520645\">📂</tg-emoji>Товара в наличии - <code>{count}</code>\n"
@@ -264,7 +299,6 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
         "Для оплаты воспользуйтесь кнопками ниже<tg-emoji emoji-id=\"5963087934696459905\">⬇️</tg-emoji>"
     )
     
-    # Добавлен вывод фотографии баннера banner.jpg
     if os.path.exists("banner.jpg"):
         photo = FSInputFile("banner.jpg")
         await callback_query.message.answer_photo(
@@ -307,19 +341,18 @@ async def process_card_payment_details(callback_query: types.CallbackQuery):
         "<tg-emoji emoji-id=\"5944753741512052670\">📷</tg-emoji>После оплаты отправьте боту скриншот оплаты."
     )
     
-    # Редактируем описание под баннером, чтобы баннер оставался на месте
     try:
-        await callback_query.message.edit_caption(
-            caption=payment_details_text,
-            reply_markup=get_after_card_payment_keyboard(version_type, period),
-            parse_mode="HTML"
-        )
+         await callback_query.message.edit_caption(
+             caption=payment_details_text,
+             reply_markup=get_after_card_payment_keyboard(version_type, period),
+             parse_mode="HTML"
+         )
     except Exception:
-        await callback_query.message.edit_text(
-            text=payment_details_text, 
-            reply_markup=get_after_card_payment_keyboard(version_type, period), 
-            parse_mode="HTML"
-        )
+         await callback_query.message.edit_text(
+             text=payment_details_text, 
+             reply_markup=get_after_card_payment_keyboard(version_type, period), 
+             parse_mode="HTML"
+         )
 
 # --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА ---
 
@@ -334,7 +367,6 @@ async def admin_select_version(callback_query: types.CallbackQuery):
     version = "vip" if callback_query.data == "adm_choose_vip" else "lite"
     await callback_query.message.answer(f"Выберите период для настройки версии {version.upper()}:", reply_markup=get_admin_periods_keyboard(version, prefix="add"))
 
-# Карта сопоставления инлайн-кнопок админки с базой JSON
 ADMIN_CALLBACK_MAP = {
     "add_vip_1d": ("lebro_vip", "1_day"),
     "add_vip_7d": ("lebro_vip", "7_days"),
