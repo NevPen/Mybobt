@@ -7,7 +7,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LinkPrevie
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
-BOT_TOKEN = "8721036900:AAEwk-tRJvgP0NVtsg3U3GOg1_3shj5nTB8"
+BOT_TOKEN = "8690556428:AAHV7WiJMeGKvmsOGYdNodK1BQZcf4S4aJA"
 ADMIN_ID = 7604556074  # Ваш Telegram ID
 
 bot = Bot(token=BOT_TOKEN)
@@ -17,7 +17,7 @@ dp = Dispatcher()
 banned_users = {}
 ticket_counter = 0
 
-# --- ПРЯМАЯ РАБОТА С ФАЙЛОМ БАЗЫ ДАННЫХ ---
+# --- РАБОТА С БАЗОЙ ДАННЫХ ТОВАРОВ (JSON) ---
 DATA_FILE = "shop_data.json"
 
 def load_shop_data():
@@ -79,6 +79,7 @@ def get_lebro_versions():
         [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
+# ИСПРАВЛЕНО: Кнопки периодов выстраиваются строго по одной горизонтальной линии
 def get_user_periods_keyboard(version_type):
     current_data = load_shop_data()
     version_items = current_data.get(version_type, {})
@@ -95,6 +96,7 @@ def get_user_periods_keyboard(version_type):
         count = len(keys_list)
         if count > 0:  
             button_text = f"{labels[period]} ({count})\u200b"
+            # Все подходящие кнопки добавляются в один плоский список buttons_row
             buttons_row.append(InlineKeyboardButton(
                 text=button_text, 
                 callback_data=f"buy_{version_type}_{period}",
@@ -103,6 +105,7 @@ def get_user_periods_keyboard(version_type):
             
     keyboard_structure = []
     if buttons_row:
+        # Помещаем список кнопок как ОДНУ строку
         keyboard_structure.append(buttons_row)
     keyboard_structure.append([InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")])
     
@@ -118,15 +121,15 @@ def get_admin_main_keyboard():
 def get_admin_periods_keyboard(version):
     if version == "vip":
         return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="1 день\u200b", callback_data="add_vip_1d", icon_custom_emoji_id="5836907383292436018")],
-            [InlineKeyboardButton(text="7 дней\u200b", callback_data="add_vip_7d", icon_custom_emoji_id="5836907383292436018")],
-            [InlineKeyboardButton(text="30 дней\u200b", callback_data="add_vip_30d", icon_custom_emoji_id="5836907383292436018")],
-            [InlineKeyboardButton(text="Навсегда\u200b", callback_data="add_vip_forever", icon_custom_emoji_id="5836907383292436018")]
+            [InlineKeyboardButton(text="1 день\u200b", callback_data="add_lebro_vip_1_day", icon_custom_emoji_id="5836907383292436018")],
+            [InlineKeyboardButton(text="7 дней\u200b", callback_data="add_lebro_vip_7_days", icon_custom_emoji_id="5836907383292436018")],
+            [InlineKeyboardButton(text="30 дней\u200b", callback_data="add_lebro_vip_30_days", icon_custom_emoji_id="5836907383292436018")],
+            [InlineKeyboardButton(text="Навсегда\u200b", callback_data="add_lebro_vip_forever", icon_custom_emoji_id="5836907383292436018")]
         ])
     else:
         return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="1 день\u200b", callback_data="add_lite_1d", icon_custom_emoji_id="5836907383292436018")],
-            [InlineKeyboardButton(text="7 дней\u200b", callback_data="add_lite_7d", icon_custom_emoji_id="5836907383292436018")]
+            [InlineKeyboardButton(text="1 день\u200b", callback_data="add_lebro_lite_1_day", icon_custom_emoji_id="5836907383292436018")],
+            [InlineKeyboardButton(text="7 дней\u200b", callback_data="add_lebro_lite_7_days", icon_custom_emoji_id="5836907383292436018")]
         ])
 
 def get_admin_inline_buttons(user_id: int):
@@ -169,15 +172,15 @@ async def start(message: types.Message, state: FSMContext):
 
 @dp.callback_query(lambda c: c.data == 'shop')
 async def process_shop(callback_query: types.CallbackQuery):
-    await callback_query.answer()  
+    await callback_query.answer()
     text = "<tg-emoji emoji-id=\"5870563425628721113\">🛍</tg-emoji> <b>Выберите нужный товар</b>"
-    await callback_query.message.answer(text, reply_markup=get_shop_categories(), parse_mode="HTML")
+    await callback_query.message.edit_text(text, reply_markup=get_shop_categories(), parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data == 'prod_lebro')
 async def process_lebro_cheat(callback_query: types.CallbackQuery):
     await callback_query.answer()
     text = "<b>Выберите версию Lebro Cheat</b>"
-    await callback_query.message.answer(text, reply_markup=get_lebro_versions(), parse_mode="HTML")
+    await callback_query.message.edit_text(text, reply_markup=get_lebro_versions(), parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data in ['ver_lebro_lite', 'ver_lebro_vip'])
 async def user_select_version(callback_query: types.CallbackQuery):
@@ -186,21 +189,24 @@ async def user_select_version(callback_query: types.CallbackQuery):
     
     current_data = load_shop_data()
     version_dict = current_data.get(version_type, {})
+    
     has_items = any(len(keys) > 0 for keys in version_dict.values())
     
     if not has_items:
         text = "<tg-emoji emoji-id=\"5920046907782074235\">📝</tg-emoji>Нет в наличии"
-        await callback_query.message.answer(text, reply_markup=get_main_button(), parse_mode="HTML")
+        await callback_query.message.edit_text(text, reply_markup=get_main_button(), parse_mode="HTML")
     else:
         text = "<b>Выберите период подписки:</b>"
-        await callback_query.message.answer(text, reply_markup=get_user_periods_keyboard(version_type), parse_mode="HTML")
+        await callback_query.message.edit_text(text, reply_markup=get_user_periods_keyboard(version_type), parse_mode="HTML")
 
+# Оформление покупки товара
 @dp.callback_query(lambda c: c.data.startswith('buy_'))
 async def user_buy_product(callback_query: types.CallbackQuery):
     await callback_query.answer()
     parts = callback_query.data.split('_')
+    version_type = f"{parts[1]}_{parts[2]}"  # Получаем lebro_lite или lebro_vip
     
-    version_type = f"{parts}_{parts}"  
+    # Склеиваем период подписки из оставшихся частей callback_data
     period = "_".join(parts[3:])
     
     current_data = load_shop_data()
@@ -208,12 +214,12 @@ async def user_buy_product(callback_query: types.CallbackQuery):
     
     if keys_list:
         purchased_key = keys_list.pop(0)  
-        save_shop_data(current_data)  
+        save_shop_data(current_data)      
         text = f"🎉 <b>Успешная покупка!</b>\n\nВаш ключ: <code>{purchased_key}</code>"
     else:
         text = "<tg-emoji emoji-id=\"5920046907782074235\">📝</tg-emoji>Извините, этот товар только что закончился."
         
-    await callback_query.message.answer(text, reply_markup=get_main_button(), parse_mode="HTML")
+    await callback_query.message.edit_text(text, reply_markup=get_main_button(), parse_mode="HTML")
 
 # --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА ---
 
@@ -222,27 +228,21 @@ async def admin_select_version(callback_query: types.CallbackQuery):
     if callback_query.from_user.id != ADMIN_ID: return
     await callback_query.answer()
     version = "vip" if callback_query.data == "adm_choose_vip" else "lite"
-    await callback_query.message.answer(f"Выберите период для настройки версии {version.upper()}:", reply_markup=get_admin_periods_keyboard(version))
+    await callback_query.message.edit_text(f"Выберите период для настройки версии {version.upper()}:", reply_markup=get_admin_periods_keyboard(version))
 
-ADMIN_CALLBACK_MAP = {
-    "add_vip_1d": ("lebro_vip", "1_day"),
-    "add_vip_7d": ("lebro_vip", "7_days"),
-    "add_vip_30d": ("lebro_vip", "30_days"),
-    "add_vip_forever": ("lebro_vip", "forever"),
-    "add_lite_1d": ("lebro_lite", "1_day"),
-    "add_lite_7d": ("lebro_lite", "7_days")
-}
-
-@dp.callback_query(lambda c: c.data in ADMIN_CALLBACK_MAP.keys())
+@dp.callback_query(lambda c: c.data.startswith('add_lebro_'))
 async def admin_select_period(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
     await callback_query.answer()
     
-    version_type, period = ADMIN_CALLBACK_MAP[callback_query.data]
+    parts = callback_query.data.replace("add_", "").split("_")
+    version_type = f"{parts[0]}_{parts[1]}"  
+    period = "_".join(parts[2:])
+    
     await state.update_data(target_version=version_type, target_period=period)
     await state.set_state(AdminStates.waiting_for_key)
     
-    await callback_query.message.reply("напишите ключ:")
+    await callback_query.message.reply("введите ключ:")
 
 @dp.message(AdminStates.waiting_for_key)
 async def admin_key_received(message: types.Message, state: FSMContext):
@@ -256,7 +256,7 @@ async def admin_key_received(message: types.Message, state: FSMContext):
     current_data[version_type][period].append(message.text) 
     save_shop_data(current_data)
     
-    await message.answer("товар в магазине")
+    await message.answer("добавлен новый товар!")
     await state.clear()
 
 # --- ОСТАЛЬНЫЕ РАЗДЕЛЫ БОТА ---
@@ -265,7 +265,7 @@ async def admin_key_received(message: types.Message, state: FSMContext):
 async def process_profile(callback_query: types.CallbackQuery):
     await callback_query.answer()
     text = "<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji> Это ваш Профиль. Ваш баланс: 0 руб."
-    await callback_query.message.answer(text, reply_markup=get_main_button(), parse_mode="HTML")
+    await callback_query.message.edit_text(text, reply_markup=get_main_button(), parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data == 'rules')
 async def process_rules(callback_query: types.CallbackQuery):
@@ -275,7 +275,7 @@ async def process_rules(callback_query: types.CallbackQuery):
         "<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> <a href=\"https://telegra.ph\">Пользовательское соглашение</a>\n"
         "<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> <a href=\"https://telegra.ph\">Политика конфиденциальности</a>"
     )
-    await callback_query.message.answer(text, reply_markup=get_main_button(), parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+    await callback_query.message.edit_text(text, reply_markup=get_main_button(), parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
 
 @dp.callback_query(lambda c: c.data == 'support')
 async def process_support(callback_query: types.CallbackQuery, state: FSMContext):
@@ -284,7 +284,7 @@ async def process_support(callback_query: types.CallbackQuery, state: FSMContext
         "<tg-emoji emoji-id=\"6021418126061605425\">📞</tg-emoji> <b>Техническая поддержка</b>\n\n"
         "<tg-emoji emoji-id=\"6039450962865688331\">📝</tg-emoji> Введите <b>тему вашего обращения</b>"
     )
-    await callback_query.message.answer(text, reply_markup=None, parse_mode="HTML")
+    await callback_query.message.edit_text(text, reply_markup=None, parse_mode="HTML")
     await state.set_state(SupportStates.waiting_for_topic)
 
 @dp.message(SupportStates.waiting_for_topic)
@@ -314,6 +314,12 @@ async def ticket_topic_received(message: types.Message, state: FSMContext):
     except Exception as e:
         print(f"Ошибка уведомления админа: {e}")
     await state.clear()
+
+@dp.callback_query(lambda c: c.data == 'main')
+async def process_main(callback_query: types.CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+    await state.clear()
+    await callback_query.message.edit_text(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data.startswith('ban_'))
 async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext):
@@ -365,7 +371,7 @@ async def admin_send_reply_message(message: types.Message, state: FSMContext):
         await message.answer(f"❌ Ошибка отправки: {e}")
     await state.clear()
 
-# --- ГЛАВНАЯ ФУНКЦИЯ ДЛЯ ЗАПУСКА БОТА ---
+# --- СТАРТ БОТА ---
 async def main():
     print("Бот запущен")
     await dp.start_polling(bot)
