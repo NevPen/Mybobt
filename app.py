@@ -7,7 +7,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LinkPrevie
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
-BOT_TOKEN = "8690556428:AAHV7WiJMeGKvmsOGYdNodK1BQZcf4S4aJA"
+BOT_TOKEN = "8721036900:AAEwk-tRJvgP0NVtsg3U3GOg1_3shj5nTB8"
 ADMIN_ID = 7604556074  # Ваш Telegram ID
 
 bot = Bot(token=BOT_TOKEN)
@@ -183,7 +183,7 @@ async def start(message: types.Message, state: FSMContext):
 async def process_shop(callback_query: types.CallbackQuery):
     await callback_query.answer()  
     try:
-        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню
+        await callback_query.message.delete()
     except:
         pass
     text = "<tg-emoji emoji-id=\"5870563425628721113\">🛍</tg-emoji> <b>Выберите нужный товар</b>"
@@ -193,7 +193,7 @@ async def process_shop(callback_query: types.CallbackQuery):
 async def process_lebro_cheat(callback_query: types.CallbackQuery):
     await callback_query.answer()
     try:
-        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню
+        await callback_query.message.delete()
     except:
         pass
     text = "<b>Выберите версию Lebro Cheat</b>"
@@ -203,7 +203,7 @@ async def process_lebro_cheat(callback_query: types.CallbackQuery):
 async def user_select_version(callback_query: types.CallbackQuery):
     await callback_query.answer()
     try:
-        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню
+        await callback_query.message.delete()
     except:
         pass
     version_type = "lebro_lite" if callback_query.data == "ver_lebro_lite" else "lebro_vip"
@@ -223,12 +223,12 @@ async def user_select_version(callback_query: types.CallbackQuery):
 async def user_buy_product(callback_query: types.CallbackQuery):
     await callback_query.answer()
     try:
-        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню
+        await callback_query.message.delete()
     except:
         pass
     parts = callback_query.data.split('_')
     
-    version_type = f"{parts}_{parts}"  
+    version_type = f"{parts[1]}_{parts[2]}"  
     period = "_".join(parts[3:])
     
     current_data = load_shop_data()
@@ -250,7 +250,7 @@ async def admin_select_version(callback_query: types.CallbackQuery):
     if callback_query.from_user.id != ADMIN_ID: return
     await callback_query.answer()
     try:
-        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню в админке
+        await callback_query.message.delete()
     except:
         pass
     version = "vip" if callback_query.data == "adm_choose_vip" else "lite"
@@ -270,7 +270,7 @@ async def admin_select_period(callback_query: types.CallbackQuery, state: FSMCon
     if callback_query.from_user.id != ADMIN_ID: return
     await callback_query.answer()
     try:
-        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню в админке
+        await callback_query.message.delete()
     except:
         pass
     
@@ -315,7 +315,7 @@ async def admin_key_received(message: types.Message, state: FSMContext):
 async def process_profile(callback_query: types.CallbackQuery):
     await callback_query.answer()
     try:
-        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню
+        await callback_query.message.delete()
     except:
         pass
     
@@ -334,7 +334,7 @@ async def process_profile(callback_query: types.CallbackQuery):
 async def process_rules(callback_query: types.CallbackQuery):
     await callback_query.answer()
     try:
-        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню
+        await callback_query.message.delete()
     except:
         pass
     text = (
@@ -348,7 +348,7 @@ async def process_rules(callback_query: types.CallbackQuery):
 async def process_support(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.answer()
     try:
-        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню
+        await callback_query.message.delete()
     except:
         pass
     text = (
@@ -386,10 +386,15 @@ async def ticket_topic_received(message: types.Message, state: FSMContext):
         print(f"Ошибка уведомления админа: {e}")
     await state.clear()
 
+# --- ИСПРАВЛЕННАЯ ПАНЕЛЬ АДМИНИСТРАТОРА (Добавлен индекс [1] для списков) ---
+
 @dp.callback_query(lambda c: c.data.startswith('ban_'))
 async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
-    target_user_id = int(callback_query.data.split('_'))
+    
+    # ИСПРАВЛЕНО: Забираем ровно ID пользователя из списка строк
+    target_user_id = int(callback_query.data.split('_')[1])
+    
     await state.update_data(ban_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_ban_reason)
     await callback_query.answer()
@@ -414,7 +419,10 @@ async def admin_ban_reason_received(message: types.Message, state: FSMContext):
 @dp.callback_query(lambda c: c.data.startswith('reply_'))
 async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
-    target_user_id = int(callback_query.data.split('_'))
+    
+    # ИСПРАВЛЕНО: Забираем ровно ID пользователя из списка строк
+    target_user_id = int(callback_query.data.split('_')[1])
+    
     await state.update_data(reply_to_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_admin_reply)
     await callback_query.answer()
@@ -440,7 +448,7 @@ async def admin_send_reply_message(message: types.Message, state: FSMContext):
 async def process_main(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.answer()
     try:
-        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение при возврате на главную
+        await callback_query.message.delete()
     except:
         pass
     await state.clear()
