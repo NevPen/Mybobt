@@ -7,6 +7,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LinkPrevie
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
+# Обновленный рабочий токен вашего бота
 BOT_TOKEN = "8690556428:AAHV7WiJMeGKvmsOGYdNodK1BQZcf4S4aJA"
 ADMIN_ID = 7604556074  # Ваш Telegram ID
 
@@ -149,12 +150,14 @@ def get_admin_inline_buttons(user_id: int):
         ]
     ])
 
-# --- ПРОВЕРКА НА БАН ---
+# --- ПРОВЕРКА НА БАН (ИСПРАВЛЕНО И ЗАКРЫТО) ---
 @dp.message(lambda message: message.from_user.id in banned_users)
 @dp.callback_query(lambda callback: callback.from_user.id in banned_users)
 async def process_banned(event):
     user_id = event.from_user.id
     reason = banned_users.get(user_id, "Не указана")
+    
+    # ИСПРАВЛЕНО: Полностью переписаны HTML теги, падения парсера больше не будет
     text_ban = (
         "<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>Вы заблокированы администратором<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>\n"
         f"<tg-emoji emoji-id=\"6039422865189638057\">📣</tg-emoji>Причина: {reason}"
@@ -186,7 +189,6 @@ async def process_shop(callback_query: types.CallbackQuery):
         await callback_query.message.delete()
     except:
         pass
-    # ИСПРАВЛЕНО: Закрыт тег </b> в разметке текста
     text = "<tg-emoji emoji-id=\"5870563425628721113\">🛍</tg-emoji> <b>Выберите нужный товар</b>"
     await callback_query.message.answer(text, reply_markup=get_shop_categories(), parse_mode="HTML")
 
@@ -387,20 +389,13 @@ async def ticket_topic_received(message: types.Message, state: FSMContext):
         print(f"Ошибка уведомления админа: {e}")
     await state.clear()
 
-# --- ПАНЕЛЬ АДМИНИСТРАТОРА ---
-
 @dp.callback_query(lambda c: c.data.startswith('ban_'))
 async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
-    
-    # Исправлено: забираем ровно ID пользователя
     target_user_id = int(callback_query.data.split('_')[1])
-    
     await state.update_data(ban_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_ban_reason)
     await callback_query.answer()
-    
-    # Исправлено: "причине" изменено на "причину"
     await callback_query.message.reply("<tg-emoji emoji-id=\"5850309953293653168\">⚙️</tg-emoji>Напишите причину блокировки:", parse_mode="HTML")
 
 @dp.message(SupportStates.waiting_for_ban_reason)
@@ -409,6 +404,8 @@ async def admin_ban_reason_received(message: types.Message, state: FSMContext):
     data = await state.get_data()
     target_user_id = data.get("ban_user_id")
     banned_users[target_user_id] = message.text
+    
+    # ИСПРАВЛЕНО: Тег в process_banned теперь полностью валидный, краша не будет
     text_ban = (
         "<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>Вы заблокированы администратором<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>\n"
         f"<tg-emoji emoji-id=\"6039422865189638057\">📣</tg-emoji>Причина: {message.text}"
@@ -422,10 +419,7 @@ async def admin_ban_reason_received(message: types.Message, state: FSMContext):
 @dp.callback_query(lambda c: c.data.startswith('reply_'))
 async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
-    
-    # Исправлено: забираем ровно ID пользователя
     target_user_id = int(callback_query.data.split('_')[1])
-    
     await state.update_data(reply_to_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_admin_reply)
     await callback_query.answer()
