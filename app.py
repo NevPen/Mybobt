@@ -10,7 +10,7 @@ from aiogram.fsm.state import State, StatesGroup
 # Токен вашего бота
 BOT_TOKEN = "8690556428:AAHV7WiJMeGKvmsOGYdNodK1BQZcf4S4aJA"
 
-# ID канала для отзывов (Обязательно замени на ID своего канала, должен начинаться с -100)
+# ID канала для отзывов 
 REVIEWS_CHANNEL_ID = -1002345678901  
 
 # Список ID администраторов (Дамир и morgodon)
@@ -106,7 +106,6 @@ def get_lebro_versions():
         [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
-# --- ВЫБОР ПЕРИОДОВ ПОДПИСКИ (Кнопки 1D, 7D с кастомным эмодзи ключа) ---
 def get_user_periods_keyboard(version_type):
     current_data = load_shop_data()
     version_items = current_data.get(version_type, {})
@@ -119,7 +118,7 @@ def get_user_periods_keyboard(version_type):
             keyboard_structure.append([InlineKeyboardButton(
                 text=button_text, 
                 callback_data=f"buy_{version_type}_{period}",
-                icon_custom_emoji_id="5836907383292436018" # Премиум эмодзи ключа/алмаза
+                icon_custom_emoji_id="5836907383292436018" 
             )])
             
     keyboard_structure.append([InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")])
@@ -222,7 +221,7 @@ async def handle_receipt(message: types.Message, state: FSMContext):
     
     await state.clear()
 
-# --- ВЫДАЧА ТОВАРА С ПРЕМИУМ ЭМОДЗИ 👍 ---
+# --- ВЫДАЧА ТОВАРА ---
 @dp.callback_query(F.data.startswith("rcpt_accept_"))
 async def admin_accept_receipt(callback_query: types.CallbackQuery):
     if callback_query.from_user.id not in ADMIN_IDS: return
@@ -250,9 +249,8 @@ async def admin_accept_receipt(callback_query: types.CallbackQuery):
     save_shop_data(current_data)
 
     version_title = LABELS_VER.get(version_type, version_type)
-    period_title = LABELS_PER.get(period, period).lower() # Будет 1d, 7d
+    period_title = LABELS_PER.get(period, period).lower()
 
-    # Полное соответствие вашему тексту и премиум эмодзи 👍
     success_text = (
         f"<tg-emoji emoji-id=\"6041720006973067267\">👍</tg-emoji>Ваш чек оплаты был подтверждён.\n"
         f"Спасибо за покупку <b>Lebro ({period_title}-{version_title})</b>\n\n"
@@ -315,7 +313,7 @@ async def admin_reason_received(message: types.Message, state: FSMContext):
         
     await state.clear()
 
-# --- СИСТЕМА ОТЗЫВОВ С ПРЕМИУМ ЭМОДЗИ ⬆️ И 😝 ---
+# --- СИСТЕМА ОТЗЫВОВ ---
 @dp.callback_query(F.data.startswith("leave_review_"))
 async def start_review_process(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.answer()
@@ -326,7 +324,6 @@ async def start_review_process(callback_query: types.CallbackQuery, state: FSMCo
     await state.update_data(review_product=f"Lebro ({p_title}-{v_title})")
     await state.set_state(ReviewStates.waiting_for_review)
     
-    # Текст запроса отзыва с премиум эмодзи стрелочки ⬆️
     await callback_query.message.answer("<tg-emoji emoji-id=\"6028205772117118673\">⬆️</tg-emoji>Пожалуйста, напишите ваш отзыв одним сообщением.")
 
 @dp.message(ReviewStates.waiting_for_review)
@@ -334,24 +331,18 @@ async def process_user_review(message: types.Message, state: FSMContext):
     state_data = await state.get_data()
     product_name = state_data.get("review_product", "Lebro")
     
-    # Текст над пересылаемым сообщением
     header_text = (
         f"Товар: <b>{product_name}</b>\n"
         f"Отзыв —"
     )
     
     try:
-        # Отправляем шапку отзыва в канал
         await bot.send_message(chat_id=REVIEWS_CHANNEL_ID, text=header_text, parse_mode="HTML")
-        
-        # Пересылаем сообщение (появится автор отзыва)
         await bot.forward_message(
             chat_id=REVIEWS_CHANNEL_ID,
             from_chat_id=message.chat.id,
             message_id=message.message_id
         )
-            
-        # Ответ пользователю с премиум эмодзи 😝
         await message.answer("<tg-emoji emoji-id=\"6043847274210005137\">😝</tg-emoji>Спасибо большое за ваш отзыв", reply_markup=get_main_button(), parse_mode="HTML")
     except Exception as e:
         await message.answer("❌ Не удалось отправить отзыв в канал. Проверьте права бота.")
@@ -405,6 +396,7 @@ async def user_select_version(callback_query: types.CallbackQuery):
         text = "<b>Выберите период подписки:</b>"
         await callback_query.message.answer(text, reply_markup=get_user_periods_keyboard(version_type), parse_mode="HTML")
 
+# --- ВЫВОД ДЕТАЛЕЙ ТОВАРА (ИСПРАВЛЕНЫ ПРОБЕЛЫ И ТЕГИ) ---
 @dp.callback_query(lambda c: c.data.startswith('buy_'))
 async def user_view_product_details(callback_query: types.CallbackQuery):
     await callback_query.answer()
@@ -429,11 +421,12 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     v_title = LABELS_VER.get(version_type, version_type)
     p_title = LABELS_PER.get(period, period)
     
+    # ТУТ: Исправлен двойной пробел и добавлены премиум эмодзи папки, цены и руки вниз 👇
     text_details = (
         f"<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji>Выбран товар - <b>Lebro Cheat ({p_title}-{v_title})</b>\n\n"
-        f"📂Товара в наличии - <code>{count}</code>\n"
-        f"💰Цена - <code>{price}  руб</code>\n\n"
-        "Для оплаты воспользуйтесь кнопками ниже 👇"
+        f"<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji>Товара в наличии - <code>{count}</code>\n"
+        f"<tg-emoji emoji-id=\"5769126056262898415\">💰</tg-emoji>Цена - <code>{price} руб</code>\n\n"
+        "Для оплаты воспользуйтесь кнопками ниже <tg-emoji emoji-id=\"6039802767931871481\">👇</tg-emoji>"
     )
     
     if os.path.exists("banner.jpg"):
@@ -442,6 +435,7 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     else:
         await callback_query.message.answer(text_details, reply_markup=get_payment_keyboard(version_type, period), parse_mode="HTML")
 
+# --- РЕКВИЗИТЫ ОПЛАТЫ (ИСПРАВЛЕНЫ ПРОБЕЛЫ И ВСЕ ТЕГИ НА ПРЕМИУМ) ---
 @dp.callback_query(lambda c: c.data.startswith('pay_card_'))
 async def process_card_payment_details(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.answer()
@@ -461,15 +455,19 @@ async def process_card_payment_details(callback_query: types.CallbackQuery, stat
     item_data = current_data.get(version_type, {}).get(period, {})
     price = item_data.get("price", "0")
     
+    v_title = LABELS_VER.get(version_type, version_type)
+    p_title = LABELS_PER.get(period, period)
+    
+    # ТУТ: Все эмодзи переведены в <tg-emoji> теги, убран двойной пробел из строки цены
     payment_details_text = (
-        "💳 <b>Перевод на карту</b>\n\n"
-        f"📦 Товар: 1 день-Vip\n"
-        f"💰 Цена: {price}  руб\n\n"
-        "💳 Банк: Сбер\n"
-        "👤 Получатель: Дамир. Ф\n"
-        "👛 Номер: <code>+79373521278</code>\n\n"
-        "💬 В комментарии к переводу укажите свой юзернейм.\n"
-        "📷 После оплаты отправьте боту скриншот оплаты."
+        "<tg-emoji emoji-id=\"5769126056262898415\">💳</tg-emoji> <b>Перевод на карту</b>\n\n"
+        f"<tg-emoji emoji-id=\"6039630677182254664\">📦</tg-emoji> Товар: {p_title}-{v_title}\n"
+        f"<tg-emoji emoji-id=\"5769126056262898415\">💰</tg-emoji> Цена: {price} руб\n\n"
+        "<tg-emoji emoji-id=\"5769126056262898415\">💳</tg-emoji> Банк: Сбер\n"
+        "<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji> Получатель: Дамир. Ф\n"
+        "<tg-emoji emoji-id=\"5818968032747198744\">👛</tg-emoji> Номер: <code>+79373521278</code>\n\n"
+        "<tg-emoji emoji-id=\"6039422865189638057\">💬</tg-emoji> В комментарии к переводу укажите свой юзернейм.\n"
+        "<tg-emoji emoji-id=\"6039573425268201570\">📷</tg-emoji> После оплаты отправьте боту скриншот оплаты."
     )
     
     try:
@@ -538,7 +536,7 @@ async def admin_key_received(message: types.Message, state: FSMContext):
         await message.answer("❌ Произошла ошибка внутренней структуры категорий.")
     await state.clear()
 
-# --- СИСТЕМА УДАЛЕНИЯ ТОВАРОВ (КЛЮЧЕЙ) ---
+# --- СИСТЕМА УДАЛЕНИЯ ТОВАРОВ ---
 @dp.callback_query(lambda c: c.data == 'adm_delete_main')
 async def admin_delete_main_menu(callback_query: types.CallbackQuery):
     if callback_query.from_user.id not in ADMIN_IDS: return
