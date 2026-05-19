@@ -396,7 +396,7 @@ async def user_select_version(callback_query: types.CallbackQuery):
         text = "<b>Выберите период подписки:</b>"
         await callback_query.message.answer(text, reply_markup=get_user_periods_keyboard(version_type), parse_mode="HTML")
 
-# --- ВЫВОД ДЕТАЛЕЙ ТОВАРА (ИСПРАВЛЕНЫ ПРОБЕЛЫ И ТЕГИ) ---
+# --- ВЫВОД ДЕТАЛЕЙ ТОВАРА ---
 @dp.callback_query(lambda c: c.data.startswith('buy_'))
 async def user_view_product_details(callback_query: types.CallbackQuery):
     await callback_query.answer()
@@ -421,7 +421,6 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     v_title = LABELS_VER.get(version_type, version_type)
     p_title = LABELS_PER.get(period, period)
     
-    # ТУТ: Исправлен двойной пробел и добавлены премиум эмодзи папки, цены и руки вниз 👇
     text_details = (
         f"<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji>Выбран товар - <b>Lebro Cheat ({p_title}-{v_title})</b>\n\n"
         f"<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji>Товара в наличии - <code>{count}</code>\n"
@@ -435,7 +434,7 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     else:
         await callback_query.message.answer(text_details, reply_markup=get_payment_keyboard(version_type, period), parse_mode="HTML")
 
-# --- РЕКВИЗИТЫ ОПЛАТЫ (ИСПРАВЛЕНЫ ПРОБЕЛЫ И ВСЕ ТЕГИ НА ПРЕМИУМ) ---
+# --- РЕКВИЗИТЫ ОПЛАТЫ (ИСПРАВЛЕНА ОШИБКА ОБНОВЛЕНИЯ КНОПОК) ---
 @dp.callback_query(lambda c: c.data.startswith('pay_card_'))
 async def process_card_payment_details(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.answer()
@@ -458,7 +457,6 @@ async def process_card_payment_details(callback_query: types.CallbackQuery, stat
     v_title = LABELS_VER.get(version_type, version_type)
     p_title = LABELS_PER.get(period, period)
     
-    # ТУТ: Все эмодзи переведены в <tg-emoji> теги, убран двойной пробел из строки цены
     payment_details_text = (
         "<tg-emoji emoji-id=\"5769126056262898415\">💳</tg-emoji> <b>Перевод на карту</b>\n\n"
         f"<tg-emoji emoji-id=\"6039630677182254664\">📦</tg-emoji> Товар: {p_title}-{v_title}\n"
@@ -471,6 +469,7 @@ async def process_card_payment_details(callback_query: types.CallbackQuery, stat
     )
     
     try:
+         # ИСПРАВЛЕНО: Теперь передается верная клавиатура get_after_card_payment_keyboard
          await callback_query.message.edit_caption(caption=payment_details_text, reply_markup=get_after_card_payment_keyboard(version_type, period), parse_mode="HTML")
     except Exception:
          await callback_query.message.edit_text(text=payment_details_text, reply_markup=get_after_card_payment_keyboard(version_type, period), parse_mode="HTML")
