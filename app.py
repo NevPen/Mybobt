@@ -3,7 +3,7 @@ import os
 import json
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LinkPreviewOptions, LabeledPrice
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LinkPreviewOptions
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
@@ -118,8 +118,10 @@ def get_user_periods_keyboard(version_type):
     return InlineKeyboardMarkup(inline_keyboard=keyboard_structure)
 
 def get_payment_keyboard(version_type, period):
+    # Добавил кнопку "Перевод на карту" (dummy_card) и кнопку связи с @morgodon
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Написать @morgodon", url="https://t.me/morgodon")],
+        [InlineKeyboardButton(text="Оплатить (написать @morgodon)", url="https://t.me/morgodon")],
+        [InlineKeyboardButton(text="Перевод на карту\u200b", callback_data="dummy_card", icon_custom_emoji_id="5841094056251230188")],
         [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
@@ -256,6 +258,12 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     )
     
     await callback_query.message.answer(text_details, reply_markup=get_payment_keyboard(version_type, period), parse_mode="HTML")
+
+# Заглушка для кнопки "Перевод на карту"
+@dp.callback_query(lambda c: c.data == 'dummy_card')
+async def process_dummy_card(callback_query: types.CallbackQuery):
+    # Показываем всплывающее окно
+    await callback_query.answer("Оплата картой временно недоступна, для покупки напишите @morgodon", show_alert=True)
 
 # --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА ---
 
