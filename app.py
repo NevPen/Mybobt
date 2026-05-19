@@ -51,8 +51,8 @@ class SupportStates(StatesGroup):
     waiting_for_ban_reason = State()   
 
 class AdminStates(StatesGroup):
-    waiting_for_price = State()  # Ожидание ввода цены
-    waiting_for_key = State()    # Ожидание ввода ключа
+    waiting_for_price = State()  
+    waiting_for_key = State()    
 
 # --- ТЕКСТА И КЛАВИАТУРЫ ---
 START_TEXT = (
@@ -227,15 +227,13 @@ async def user_buy_product(callback_query: types.CallbackQuery):
         
     await callback_query.message.answer(text, reply_markup=get_main_button(), parse_mode="HTML")
 
-# --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА (СТРОГАЯ ПОСЛЕДОВАТЕЛЬНОСТЬ) ---
+# --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА ---
 
 @dp.callback_query(lambda c: c.data in ['adm_choose_vip', 'adm_choose_lite'])
 async def admin_select_version(callback_query: types.CallbackQuery):
     if callback_query.from_user.id != ADMIN_ID: return
     await callback_query.answer()
     version = "vip" if callback_query.data == "adm_choose_vip" else "lite"
-    
-    # Сначала админ выбирает версию товара (Vip / Lite)
     await callback_query.message.answer(f"Выберите период для настройки версии {version.upper()}:", reply_markup=get_admin_periods_keyboard(version))
 
 ADMIN_CALLBACK_MAP = {
@@ -252,11 +250,9 @@ async def admin_select_period(callback_query: types.CallbackQuery, state: FSMCon
     if callback_query.from_user.id != ADMIN_ID: return
     await callback_query.answer()
     
-    # Затем админ выбирает период (1 день / 7 дней и т.д.)
     version_type, period = ADMIN_CALLBACK_MAP[callback_query.data]
     await state.update_data(target_version=version_type, target_period=period)
     
-    # Только теперь бот запрашивает цену товара
     await state.set_state(AdminStates.waiting_for_price)
     await callback_query.message.reply("Введите цену товара:")
 
@@ -264,10 +260,7 @@ async def admin_select_period(callback_query: types.CallbackQuery, state: FSMCon
 async def admin_price_received(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID: return
     
-    # Сохраняем цену в контекст FSM
     await state.update_data(item_price=message.text)
-    
-    # Только после ввода цены переходим в состояние ожидания ключа
     await state.set_state(AdminStates.waiting_for_key)
     await message.reply("напишите ключ:")
 
@@ -282,7 +275,6 @@ async def admin_key_received(message: types.Message, state: FSMContext):
     
     current_data = load_shop_data()
     
-    # Сохраняем цену и добавляем новый ключ в структуру базы данных
     if version_type in current_data and period in current_data[version_type]:
         current_data[version_type][period]["price"] = price
         current_data[version_type][period]["keys"].append(message.text)
@@ -293,7 +285,7 @@ async def admin_key_received(message: types.Message, state: FSMContext):
         
     await state.clear()
 
-# --- ОСТАЛЬНЫЕ РАЗДЕЛЫ БОТА ---
+# --- РАЗДЕЛ ПРОФИЛЬ ---
 
 @dp.callback_query(lambda c: c.data == 'profile')
 async def process_profile(callback_query: types.CallbackQuery):
@@ -361,7 +353,7 @@ async def ticket_topic_received(message: types.Message, state: FSMContext):
 @dp.callback_query(lambda c: c.data.startswith('ban_'))
 async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
-    target_user_id = int(callback_query.data.split('_')[1])
+    target_user_id = int(callback_query.data.split('_'))
     await state.update_data(ban_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_ban_reason)
     await callback_query.answer()
@@ -386,7 +378,7 @@ async def admin_ban_reason_received(message: types.Message, state: FSMContext):
 @dp.callback_query(lambda c: c.data.startswith('reply_'))
 async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
-    target_user_id = int(callback_query.data.split('_')[1])
+    target_user_id = int(callback_query.data.split('_'))
     await state.update_data(reply_to_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_admin_reply)
     await callback_query.answer()
@@ -407,6 +399,17 @@ async def admin_send_reply_message(message: types.Message, state: FSMContext):
     except Exception as e:
         await message.answer(f"❌ Ошибка отправки: {e}")
     await state.clear()
+
+@dp.callback_query(lambda c: c.data == 'main')
+async def process_main(callback_query: types.CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+    await state.clear()
+    await callback_query.message.answer(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
+
+# --- ГЛАВНАЯ ФУНКЦИЯ ДЛЯ ЗАПУСКА БОТА ---
+async def main():
+    print("Бот запущен")
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     async def main_runner():
