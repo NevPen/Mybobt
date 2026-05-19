@@ -78,32 +78,33 @@ START_TEXT = (
     "Для покупки товаров используйте кнопки ниже <tg-emoji emoji-id=\"6039802767931871481\">⬇️</tg-emoji>"
 )
 
+# ИСПРАВЛЕНО: Убран символ \u200b, ломавший кастомные эмодзи
 def get_buttons():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Магазин\u200b", callback_data="shop", icon_custom_emoji_id="5920332557466997677")],
-        [InlineKeyboardButton(text="Профиль\u200b", callback_data="profile", icon_custom_emoji_id="6035084557378654059")],
-        [InlineKeyboardButton(text="Поддержка\u200b", callback_data="support", icon_custom_emoji_id="6039422865189638057")],
-        [InlineKeyboardButton(text="Правила\u200b", callback_data="rules", icon_custom_emoji_id="6028435952299413210")]
+        [InlineKeyboardButton(text="Магазин", callback_data="shop", icon_custom_emoji_id="5920332557466997677")],
+        [InlineKeyboardButton(text="Профиль", callback_data="profile", icon_custom_emoji_id="6035084557378654059")],
+        [InlineKeyboardButton(text="Поддержка", callback_data="support", icon_custom_emoji_id="6039422865189638057")],
+        [InlineKeyboardButton(text="Правила", callback_data="rules", icon_custom_emoji_id="6028435952299413210")]
     ])
 
 def get_main_button():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
+        [InlineKeyboardButton(text="Главная", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
 def get_shop_categories():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Lebro Cheat\u200b", callback_data="prod_lebro", icon_custom_emoji_id="5886285355279193209")],
-        [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
+        [InlineKeyboardButton(text="Lebro Cheat", callback_data="prod_lebro", icon_custom_emoji_id="5886285355279193209")],
+        [InlineKeyboardButton(text="Главная", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
 def get_lebro_versions():
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="Lite\u200b", callback_data="ver_lebro_lite", icon_custom_emoji_id="5893057118545646106"),
-            InlineKeyboardButton(text="Vip\u200b", callback_data="ver_lebro_vip", icon_custom_emoji_id="5893236738372932548")
+            InlineKeyboardButton(text="Lite", callback_data="ver_lebro_lite", icon_custom_emoji_id="5893057118545646106"),
+            InlineKeyboardButton(text="Vip", callback_data="ver_lebro_vip", icon_custom_emoji_id="5893236738372932548")
         ],
-        [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
+        [InlineKeyboardButton(text="Главная", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
 def get_user_periods_keyboard(version_type):
@@ -114,47 +115,47 @@ def get_user_periods_keyboard(version_type):
     for period, item_data in version_items.items():
         keys_list = item_data.get("keys", [])
         if len(keys_list) > 0:  
-            button_text = f"{LABELS_PER.get(period, period)}\u200b"
+            button_text = f"{LABELS_PER.get(period, period)}"
             keyboard_structure.append([InlineKeyboardButton(
                 text=button_text, 
                 callback_data=f"buy_{version_type}_{period}",
                 icon_custom_emoji_id="5836907383292436018" 
             )])
             
-    keyboard_structure.append([InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")])
+    keyboard_structure.append([InlineKeyboardButton(text="Главная", callback_data="main", icon_custom_emoji_id="5938537205847822613")])
     return InlineKeyboardMarkup(inline_keyboard=keyboard_structure)
 
 def get_payment_keyboard(version_type, period):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Перевод на карту\u200b", callback_data=f"pay_card_{version_type}_{period}", icon_custom_emoji_id="5769126056262898415")],
+        [InlineKeyboardButton(text="Перевод на карту", callback_data=f"pay_card_{version_type}_{period}", icon_custom_emoji_id="5769126056262898415")],
         [InlineKeyboardButton(text="Telegram Stars", url="https://t.me/morgodon", icon_custom_emoji_id="6028338546736107668")],
-        [InlineKeyboardButton(text="Назад\u200b", callback_data=f"ver_{version_type}", icon_custom_emoji_id="6039519841256214245")]
+        [InlineKeyboardButton(text="Назад", callback_data=f"ver_{version_type}", icon_custom_emoji_id="6039519841256214245")]
     ])
 
 def get_after_card_payment_keyboard(version_type, period):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Назад\u200b", callback_data=f"buy_{version_type}_{period}", icon_custom_emoji_id="6039519841256214245")]
+        [InlineKeyboardButton(text="Назад", callback_data=f"buy_{version_type}_{period}", icon_custom_emoji_id="6039519841256214245")]
     ])
 
 def get_admin_main_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Добавить VIP\u200b", callback_data="adm_choose_vip")],
-        [InlineKeyboardButton(text="➕ Добавить LITE\u200b", callback_data="adm_choose_lite")],
-        [InlineKeyboardButton(text="❌ Удалить товар\u200b", callback_data="adm_delete_main")]
+        [InlineKeyboardButton(text="Добавить VIP", callback_data="adm_choose_vip", icon_custom_emoji_id="5465224395346091444")],
+        [InlineKeyboardButton(text="Добавить LITE", callback_data="adm_choose_lite", icon_custom_emoji_id="5465224395346091444")],
+        [InlineKeyboardButton(text="Удалить товар", callback_data="adm_delete_main", icon_custom_emoji_id="5458348731385012571")]
     ])
 
 def get_admin_periods_keyboard(version, prefix="add"):
     if version == "vip" or version == "lebro_vip":
         return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="1 день\u200b", callback_data=f"{prefix}_vip_1d")],
-            [InlineKeyboardButton(text="7 дней\u200b", callback_data=f"{prefix}_vip_7d")],
-            [InlineKeyboardButton(text="30 дней\u200b", callback_data=f"{prefix}_vip_30d")],
-            [InlineKeyboardButton(text="Навсегда\u200b", callback_data=f"{prefix}_vip_forever")]
+            [InlineKeyboardButton(text="1 день", callback_data=f"{prefix}_vip_1d")],
+            [InlineKeyboardButton(text="7 дней", callback_data=f"{prefix}_vip_7d")],
+            [InlineKeyboardButton(text="30 дней", callback_data=f"{prefix}_vip_30d")],
+            [InlineKeyboardButton(text="Навсегда", callback_data=f"{prefix}_vip_forever")]
         ])
     else:
         return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="1 день\u200b", callback_data=f"{prefix}_lite_1d")],
-            [InlineKeyboardButton(text="7 дней\u200b", callback_data=f"{prefix}_lite_7d")]
+            [InlineKeyboardButton(text="1 день", callback_data=f"{prefix}_lite_1d")],
+            [InlineKeyboardButton(text="7 дней", callback_data=f"{prefix}_lite_7d")]
         ])
 
 def get_receipt_admin_buttons(user_id: int, version: str, period: str):
@@ -434,7 +435,7 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     else:
         await callback_query.message.answer(text_details, reply_markup=get_payment_keyboard(version_type, period), parse_mode="HTML")
 
-# --- РЕКВИЗИТЫ ОПЛАТЫ (ИСПРАВЛЕНА ОШИБКА ОБНОВЛЕНИЯ КНОПОК) ---
+# --- РЕКВИЗИТЫ ОПЛАТЫ ---
 @dp.callback_query(lambda c: c.data.startswith('pay_card_'))
 async def process_card_payment_details(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.answer()
@@ -469,7 +470,6 @@ async def process_card_payment_details(callback_query: types.CallbackQuery, stat
     )
     
     try:
-         # ИСПРАВЛЕНО: Теперь передается верная клавиатура get_after_card_payment_keyboard
          await callback_query.message.edit_caption(caption=payment_details_text, reply_markup=get_after_card_payment_keyboard(version_type, period), parse_mode="HTML")
     except Exception:
          await callback_query.message.edit_text(text=payment_details_text, reply_markup=get_after_card_payment_keyboard(version_type, period), parse_mode="HTML")
