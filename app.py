@@ -106,7 +106,7 @@ def get_lebro_versions():
         [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
-# --- ИСПРАВЛЕННАЯ КЛАВИАТУРА ПЕРИОДОВ (Короткие кнопки: 1D, 7D и т.д.) ---
+# --- ВЫБОР ПЕРИОДОВ ПОДПИСКИ (Кнопки 1D, 7D с кастомным эмодзи ключа) ---
 def get_user_periods_keyboard(version_type):
     current_data = load_shop_data()
     version_items = current_data.get(version_type, {})
@@ -115,10 +115,11 @@ def get_user_periods_keyboard(version_type):
     for period, item_data in version_items.items():
         keys_list = item_data.get("keys", [])
         if len(keys_list) > 0:  
-            button_text = f"💎 {LABELS_PER.get(period, period)}"
+            button_text = f"{LABELS_PER.get(period, period)}\u200b"
             keyboard_structure.append([InlineKeyboardButton(
                 text=button_text, 
-                callback_data=f"buy_{version_type}_{period}"
+                callback_data=f"buy_{version_type}_{period}",
+                icon_custom_emoji_id="5836907383292436018" # Премиум эмодзи ключа/алмаза
             )])
             
     keyboard_structure.append([InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")])
@@ -221,7 +222,7 @@ async def handle_receipt(message: types.Message, state: FSMContext):
     
     await state.clear()
 
-# --- ИСПРАВЛЕННАЯ ВЫДАЧА ТОВАРА (Скриншот 1) ---
+# --- ВЫДАЧА ТОВАРА С ПРЕМИУМ ЭМОДЗИ 👍 ---
 @dp.callback_query(F.data.startswith("rcpt_accept_"))
 async def admin_accept_receipt(callback_query: types.CallbackQuery):
     if callback_query.from_user.id not in ADMIN_IDS: return
@@ -249,16 +250,15 @@ async def admin_accept_receipt(callback_query: types.CallbackQuery):
     save_shop_data(current_data)
 
     version_title = LABELS_VER.get(version_type, version_type)
-    period_title = LABELS_PER.get(period, period).lower()
+    period_title = LABELS_PER.get(period, period).lower() # Будет 1d, 7d
 
-    # Новый текст выдачи товара с нужным эмодзи и форматированием
+    # Полное соответствие вашему тексту и премиум эмодзи 👍
     success_text = (
         f"<tg-emoji emoji-id=\"6041720006973067267\">👍</tg-emoji>Ваш чек оплаты был подтверждён.\n"
         f"Спасибо за покупку <b>Lebro ({period_title}-{version_title})</b>\n\n"
         f"Ключ: —- <code>{user_key}</code>"
     )
     
-    # Безопасная проверка ссылки
     if not vip_link or not vip_link.startswith("http"):
         vip_url = "https://t.me/morgodon"
     else:
@@ -315,7 +315,7 @@ async def admin_reason_received(message: types.Message, state: FSMContext):
         
     await state.clear()
 
-# --- ИСПРАВЛЕННАЯ СИСТЕМА ОТЗЫВОВ (Пересылка сообщений от имени юзера) ---
+# --- СИСТЕМА ОТЗЫВОВ С ПРЕМИУМ ЭМОДЗИ ⬆️ И 😝 ---
 @dp.callback_query(F.data.startswith("leave_review_"))
 async def start_review_process(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.answer()
@@ -326,7 +326,7 @@ async def start_review_process(callback_query: types.CallbackQuery, state: FSMCo
     await state.update_data(review_product=f"Lebro ({p_title}-{v_title})")
     await state.set_state(ReviewStates.waiting_for_review)
     
-    # Новый текст запроса отзыва
+    # Текст запроса отзыва с премиум эмодзи стрелочки ⬆️
     await callback_query.message.answer("<tg-emoji emoji-id=\"6028205772117118673\">⬆️</tg-emoji>Пожалуйста, напишите ваш отзыв одним сообщением.")
 
 @dp.message(ReviewStates.waiting_for_review)
@@ -334,7 +334,7 @@ async def process_user_review(message: types.Message, state: FSMContext):
     state_data = await state.get_data()
     product_name = state_data.get("review_product", "Lebro")
     
-    # 1. Отправляем карточку купленного товара над отзывом
+    # Текст над пересылаемым сообщением
     header_text = (
         f"Товар: <b>{product_name}</b>\n"
         f"Отзыв —"
@@ -344,14 +344,14 @@ async def process_user_review(message: types.Message, state: FSMContext):
         # Отправляем шапку отзыва в канал
         await bot.send_message(chat_id=REVIEWS_CHANNEL_ID, text=header_text, parse_mode="HTML")
         
-        # 2. ПЕРЕСЫЛАЕМ сообщение пользователя! Будет плашка "Переслано от пользователя"
+        # Пересылаем сообщение (появится автор отзыва)
         await bot.forward_message(
             chat_id=REVIEWS_CHANNEL_ID,
             from_chat_id=message.chat.id,
             message_id=message.message_id
         )
             
-        # Новый текст благодарности за отзыв
+        # Ответ пользователю с премиум эмодзи 😝
         await message.answer("<tg-emoji emoji-id=\"6043847274210005137\">😝</tg-emoji>Спасибо большое за ваш отзыв", reply_markup=get_main_button(), parse_mode="HTML")
     except Exception as e:
         await message.answer("❌ Не удалось отправить отзыв в канал. Проверьте права бота.")
@@ -460,9 +460,6 @@ async def process_card_payment_details(callback_query: types.CallbackQuery, stat
     current_data = load_shop_data()
     item_data = current_data.get(version_type, {}).get(period, {})
     price = item_data.get("price", "0")
-    
-    v_title = LABELS_VER.get(version_type, version_type)
-    p_title = LABELS_PER.get(period, period)
     
     payment_details_text = (
         "💳 <b>Перевод на карту</b>\n\n"
