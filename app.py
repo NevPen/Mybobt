@@ -52,9 +52,9 @@ class SupportStates(StatesGroup):
     waiting_for_ban_reason = State()   
 
 class AdminStates(StatesGroup):
-    waiting_for_price = State()     # Ожидание ввода цены
-    waiting_for_vip_link = State()  # Ожидание ввода ссылки на вип-канал
-    waiting_for_key = State()       # Ожидание ввода ключа
+    waiting_for_price = State()     
+    waiting_for_vip_link = State()  
+    waiting_for_key = State()       
 
 # --- ТЕКСТА И КЛАВИАТУРЫ ---
 START_TEXT = (
@@ -107,7 +107,7 @@ def get_user_periods_keyboard(version_type):
         count = len(keys_list)
         
         if count > 0:  
-            button_text = f"{labels[period]} ({count})\u200b"
+            button_text = f"{labels[period]}\u200b"
             keyboard_structure.append([InlineKeyboardButton(
                 text=button_text, 
                 callback_data=f"buy_{version_type}_{period}",
@@ -120,22 +120,23 @@ def get_user_periods_keyboard(version_type):
 # КЛАВИАТУРЫ АДМИН-ПАНЕЛИ
 def get_admin_main_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Vip\u200b", callback_data="add_lebro_vip", icon_custom_emoji_id="5893236738372932548")],
-        [InlineKeyboardButton(text="Lite\u200b", callback_data="add_lebro_lite", icon_custom_emoji_id="5893057118545646106")]
+        [InlineKeyboardButton(text="Vip\u200b", callback_data="adm_choose_vip", icon_custom_emoji_id="5893236738372932548")],
+        [InlineKeyboardButton(text="Lite\u200b", callback_data="adm_choose_lite", icon_custom_emoji_id="5893057118545646106")]
     ])
 
+# ИСПРАВЛЕНО: callback_data кнопок теперь строго совпадает с ADMIN_CALLBACK_MAP
 def get_admin_periods_keyboard(version):
     if version == "vip":
         return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="1 день\u200b", callback_data="add_lebro_vip_1_day", icon_custom_emoji_id="5836907383292436018")],
-            [InlineKeyboardButton(text="7 дней\u200b", callback_data="add_lebro_vip_7_days", icon_custom_emoji_id="5836907383292436018")],
-            [InlineKeyboardButton(text="30 дней\u200b", callback_data="add_lebro_vip_30_days", icon_custom_emoji_id="5836907383292436018")],
-            [InlineKeyboardButton(text="Навсегда\u200b", callback_data="add_lebro_vip_forever", icon_custom_emoji_id="5836907383292436018")]
+            [InlineKeyboardButton(text="1 день\u200b", callback_data="add_vip_1d", icon_custom_emoji_id="5836907383292436018")],
+            [InlineKeyboardButton(text="7 дней\u200b", callback_data="add_vip_7d", icon_custom_emoji_id="5836907383292436018")],
+            [InlineKeyboardButton(text="30 дней\u200b", callback_data="add_vip_30d", icon_custom_emoji_id="5836907383292436018")],
+            [InlineKeyboardButton(text="Навсегда\u200b", callback_data="add_vip_forever", icon_custom_emoji_id="5836907383292436018")]
         ])
     else:
         return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="1 день\u200b", callback_data="add_lebro_lite_1_day", icon_custom_emoji_id="5836907383292436018")],
-            [InlineKeyboardButton(text="7 дней\u200b", callback_data="add_lebro_lite_7_days", icon_custom_emoji_id="5836907383292436018")]
+            [InlineKeyboardButton(text="1 день\u200b", callback_data="add_lite_1d", icon_custom_emoji_id="5836907383292436018")],
+            [InlineKeyboardButton(text="7 дней\u200b", callback_data="add_lite_7d", icon_custom_emoji_id="5836907383292436018")]
         ])
 
 def get_admin_inline_buttons(user_id: int):
@@ -216,7 +217,6 @@ async def user_select_version(callback_query: types.CallbackQuery):
         text = "<b>Выберите период подписки:</b>"
         await callback_query.message.answer(text, reply_markup=get_user_periods_keyboard(version_type), parse_mode="HTML")
 
-# ИСПРАВЛЕНО: Полная точность извлечения версии, периода подписки и вывод вашего точного шаблона текста
 @dp.callback_query(lambda c: c.data.startswith('buy_'))
 async def user_view_product_details(callback_query: types.CallbackQuery):
     await callback_query.answer()
@@ -225,7 +225,6 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     except:
         pass
     
-    # Исправлен срез: точное определение ключей словаря в базе
     data_str = callback_query.data.replace("buy_", "")
     if data_str.startswith("lebro_vip_"):
         version_type = "lebro_vip"
@@ -244,7 +243,6 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     labels_ver = {"lebro_vip": "Vip", "lebro_lite": "Lite"}
     labels_per = {"1_day": "1D", "7_days": "7D", "30_days": "30D", "forever": "Навсегда"}
     
-    # ИСПРАВЛЕНО: Текст изменен строго по вашему ТЗ, использованы обычные дефисы (-)
     text_details = (
         f"Выбран товар - Lebro Cheat ({labels_ver.get(version_type)} {labels_per.get(period)})\n\n"
         f"Товара в наличии - {count}\n"
@@ -254,9 +252,9 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     
     await callback_query.message.answer(text_details, reply_markup=get_main_button(), parse_mode="HTML")
 
-# --- СТАРТ ЦЕПОЧКИ АДМИН-ПАНЕЛИ ---
+# --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА ---
 
-@dp.callback_query(lambda c: c.data in ['add_lebro_vip', 'add_lebro_lite'])
+@dp.callback_query(lambda c: c.data in ['adm_choose_vip', 'adm_choose_lite'])
 async def admin_select_version(callback_query: types.CallbackQuery):
     if callback_query.from_user.id != ADMIN_ID: return
     await callback_query.answer()
@@ -264,10 +262,20 @@ async def admin_select_version(callback_query: types.CallbackQuery):
         await callback_query.message.delete()
     except:
         pass
-    version = "vip" if callback_query.data == "add_lebro_vip" else "lite"
+    version = "vip" if callback_query.data == "adm_choose_vip" else "lite"
     await callback_query.message.answer(f"Выберите период для настройки версии {version.upper()}:", reply_markup=get_admin_periods_keyboard(version))
 
-@dp.callback_query(lambda c: c.data.startswith('add_lebro_'))
+# Карта сопоставления инлайн-кнопок админки с базой JSON
+ADMIN_CALLBACK_MAP = {
+    "add_vip_1d": ("lebro_vip", "1_day"),
+    "add_vip_7d": ("lebro_vip", "7_days"),
+    "add_vip_30d": ("lebro_vip", "30_days"),
+    "add_vip_forever": ("lebro_vip", "forever"),
+    "add_lite_1d": ("lebro_lite", "1_day"),
+    "add_lite_7d": ("lebro_lite", "7_days")
+}
+
+@dp.callback_query(lambda c: c.data in ADMIN_CALLBACK_MAP.keys())
 async def admin_select_period(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
     await callback_query.answer()
@@ -276,22 +284,11 @@ async def admin_select_period(callback_query: types.CallbackQuery, state: FSMCon
     except:
         pass
     
-    # Определение версии и периода подписки для сохранения в JSON
-    data_str = callback_query.data.replace("add_lebro_", "")
-    if data_str.startswith("vip_"):
-        version_type = "lebro_vip"
-        period_raw = data_str.replace("vip_", "")
-    else:
-        version_type = "lebro_lite"
-        period_raw = data_str.replace("lite_", "")
-        
-    period_map = {"1_day": "1_day", "7_days": "7_days", "30_days": "30_days", "forever": "forever"}
-    period = period_map.get(period_raw, period_raw)
-    
+    # ИСПРАВЛЕНО: Теперь навигация по дням в админке работает безотказно
+    version_type, period = ADMIN_CALLBACK_MAP[callback_query.data]
     await state.update_data(target_version=version_type, target_period=period)
     await state.set_state(AdminStates.waiting_for_price)
     
-    # 1. ЗАПРОС ЦЕНЫ
     await callback_query.message.answer("Введите цену товара:")
 
 @dp.message(AdminStates.waiting_for_price)
@@ -299,7 +296,6 @@ async def admin_price_received(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID: return
     await state.update_data(item_price=message.text)
     
-    # 2. ЗАПРОС ССЫЛКИ НА ВИП-КАНАЛ
     await state.set_state(AdminStates.waiting_for_vip_link)
     await message.reply("ссылка вип канал:")
 
@@ -308,7 +304,6 @@ async def admin_vip_link_received(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID: return
     await state.update_data(item_vip_link=message.text)
     
-    # 3. ИСПРАВЛЕНО: ВОЗВРАЩЕН ЗАПРОС КЛЮЧА
     await state.set_state(AdminStates.waiting_for_key)
     await message.reply("напишите ключ:")
 
@@ -335,7 +330,7 @@ async def admin_key_received(message: types.Message, state: FSMContext):
         
     await state.clear()
 
-# --- ОСТАЛЬНЫЕ РАЗДЕЛЫ БОТА ---
+# --- РАЗДЕЛ ПРОФИЛЬ ---
 
 @dp.callback_query(lambda c: c.data == 'profile')
 async def process_profile(callback_query: types.CallbackQuery):
@@ -415,7 +410,7 @@ async def ticket_topic_received(message: types.Message, state: FSMContext):
 @dp.callback_query(lambda c: c.data.startswith('ban_'))
 async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
-    target_user_id = int(callback_query.data.split('_')[1])
+    target_user_id = int(callback_query.data.split('_'))
     await state.update_data(ban_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_ban_reason)
     await callback_query.answer()
@@ -440,7 +435,7 @@ async def admin_ban_reason_received(message: types.Message, state: FSMContext):
 @dp.callback_query(lambda c: c.data.startswith('reply_'))
 async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
-    target_user_id = int(callback_query.data.split('_')[1])
+    target_user_id = int(callback_query.data.split('_'))
     await state.update_data(reply_to_user_id=target_user_id)
     await state.set_state(SupportStates.waiting_for_admin_reply)
     await callback_query.answer()
