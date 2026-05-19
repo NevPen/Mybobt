@@ -77,7 +77,7 @@ def get_main_button():
 
 def get_shop_categories():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Lebro Cheat\u200b", callback_data="prod_lebro", icon_custom_emoji_id="5886285355279193209")],
+        [InlineKeyboardButton(text="Telegram Stars", callback_data="prod_lebro")],
         [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
@@ -405,7 +405,6 @@ async def ticket_topic_received(message: types.Message, state: FSMContext):
         print(f"Ошибка уведомления админа: {e}")
     await state.clear()
 
-# ИСПРАВЛЕНО: Теперь id достается корректно через split('_')[1]
 @dp.callback_query(lambda c: c.data.startswith('ban_'))
 async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
@@ -431,7 +430,6 @@ async def admin_ban_reason_received(message: types.Message, state: FSMContext):
         print(f"Не удалось отправить карточку бана: {e}")
     await state.clear()
 
-# ИСПРАВЛЕНО: Теперь id достается корректно через split('_')[1]
 @dp.callback_query(lambda c: c.data.startswith('reply_'))
 async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
