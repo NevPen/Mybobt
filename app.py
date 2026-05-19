@@ -118,10 +118,11 @@ def get_user_periods_keyboard(version_type):
     return InlineKeyboardMarkup(inline_keyboard=keyboard_structure)
 
 def get_payment_keyboard(version_type, period):
+    # Убрали Главную, добавили Назад и обновили эмодзи по запросу
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Telegram Stars", url="https://t.me/morgodon")],
-        [InlineKeyboardButton(text="Перевод на карту\u200b", callback_data="none", icon_custom_emoji_id="5841094056251230188")],
-        [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
+        [InlineKeyboardButton(text="Перевод на карту\u200b", callback_data="none", icon_custom_emoji_id="5769126056262898415")],
+        [InlineKeyboardButton(text="Telegram Stars", url="https://t.me/morgodon", icon_custom_emoji_id="6028338546736107668")],
+        [InlineKeyboardButton(text="Назад\u200b", callback_data=f"ver_{version_type}", icon_custom_emoji_id="6039519841256214245")]
     ])
 
 # КЛАВИАТУРЫ АДМИН-ПАНЕЛИ
@@ -396,7 +397,6 @@ async def admin_list_keys_for_deletion(callback_query: types.CallbackQuery):
         return
         
     kb_structure = []
-    # Строим кнопки для каждого ключа. В callback_data передаем индексы, чтобы точно знать что удалять
     for idx, key in enumerate(keys_list):
         kb_structure.append([InlineKeyboardButton(
             text=f"🗑 Удалить: {key}", 
@@ -412,10 +412,8 @@ async def admin_execute_deletion(callback_query: types.CallbackQuery):
     if callback_query.from_user.id != ADMIN_ID: return
     await callback_query.answer()
     
-    # Парсим структуру callback данных: confirm_del_ {version_type} _ {period} _ {idx}
     data_parts = callback_query.data.replace("confirm_del_", "").split("_")
     
-    # Название версии может содержать нижнее подчеркивание (lebro_vip / lebro_lite)
     if "vip" in data_parts[1]:
         version_type = f"{data_parts[0]}_{data_parts[1]}"
         period = f"{data_parts[2]}_{data_parts[3]}" if data_parts[2] == "1" or data_parts[2] == "7" or data_parts[2] == "30" else data_parts[2]
@@ -433,7 +431,6 @@ async def admin_execute_deletion(callback_query: types.CallbackQuery):
     except Exception as e:
         await callback_query.answer("Ошибка: ключ уже удален или изменен", show_alert=True)
         
-    # Возвращаем админа в главное меню админки
     try:
          await callback_query.message.delete()
     except:
