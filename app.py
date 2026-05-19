@@ -7,7 +7,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LinkPrevie
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
-BOT_TOKEN = "8858647762:AAFneZ4QyZtNWjtCnjJOPwx9urRKkKDZTzQ"
+BOT_TOKEN = "8690556428:AAHV7WiJMeGKvmsOGYdNodK1BQZcf4S4aJA"
 ADMIN_ID = 7604556074  # Ваш Telegram ID
 
 bot = Bot(token=BOT_TOKEN)
