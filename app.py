@@ -118,9 +118,14 @@ def get_user_periods_keyboard(version_type):
     return InlineKeyboardMarkup(inline_keyboard=keyboard_structure)
 
 def get_payment_keyboard(version_type, period):
-    # Убрали Главную, добавили Назад и обновили эмодзи по запросу
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Перевод на карту\u200b", callback_data="none", icon_custom_emoji_id="5769126056262898415")],
+        [InlineKeyboardButton(text="Перевод на карту\u200b", callback_data=f"pay_card_{version_type}_{period}", icon_custom_emoji_id="5769126056262898415")],
+        [InlineKeyboardButton(text="Telegram Stars", url="https://t.me/morgodon", icon_custom_emoji_id="6028338546736107668")],
+        [InlineKeyboardButton(text="Назад\u200b", callback_data=f"ver_{version_type}", icon_custom_emoji_id="6039519841256214245")]
+    ])
+
+def get_after_card_payment_keyboard(version_type):
+    return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Telegram Stars", url="https://t.me/morgodon", icon_custom_emoji_id="6028338546736107668")],
         [InlineKeyboardButton(text="Назад\u200b", callback_data=f"ver_{version_type}", icon_custom_emoji_id="6039519841256214245")]
     ])
@@ -251,18 +256,52 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     labels_ver = {"lebro_vip": "Vip", "lebro_lite": "Lite"}
     labels_per = {"1_day": "1D", "7_days": "7D", "30_days": "30D", "forever": "Навсегда"}
     
+    # Обновленный текст и эмодзи по твоему запросу
     text_details = (
-        f"Выбран товар - Lebro Cheat ({labels_ver.get(version_type)} {labels_per.get(period)})\n\n"
-        f"Товара в наличии - {count}\n"
-        f"Цена - {price} руб.\n\n"
-        "Для оплаты воспользуйтесь кнопками ниже"
+        f"<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji>Выбран товар - <b>Lebro Cheat ({labels_per.get(period)}-{labels_ver.get(version_type)})</b>\n\n"
+        f"<tg-emoji emoji-id=\"6039348811363520645\">📂</tg-emoji>Товара in наличии - <code>{count}</code>\n"
+        f"<tg-emoji emoji-id=\"5904462880941545555\">🪙</tg-emoji>Цена - <code>{price} руб.</code>\n\n"
+        "Для оплаты воспользуйтесь кнопками ниже<tg-emoji emoji-id=\"5963087934696459905\">⬇️</tg-emoji>"
     )
     
     await callback_query.message.answer(text_details, reply_markup=get_payment_keyboard(version_type, period), parse_mode="HTML")
 
-@dp.callback_query(lambda c: c.data == 'none')
-async def process_none(callback_query: types.CallbackQuery):
+# НАЖАТИЕ НА КНОПКУ «ПЕРЕВОД НА КАРТУ» — ВЫВОД РЕКВИЗИТОВ
+@dp.callback_query(lambda c: c.data.startswith('pay_card_'))
+async def process_card_payment_details(callback_query: types.CallbackQuery):
     await callback_query.answer()
+    
+    data_str = callback_query.data.replace("pay_card_", "")
+    if data_str.startswith("lebro_vip_"):
+        version_type = "lebro_vip"
+        period = data_str.replace("lebro_vip_", "")
+    else:
+        version_type = "lebro_lite"
+        period = data_str.replace("lebro_lite_", "")
+        
+    current_data = load_shop_data()
+    item_data = current_data.get(version_type, {}).get(period, {})
+    price = item_data.get("price", "0")
+    
+    labels_ver = {"lebro_vip": "Vip", "lebro_lite": "Lite"}
+    labels_per = {"1_day": "1D", "7_days": "7D", "30_days": "30D", "forever": "Навсегда"}
+    
+    payment_details_text = (
+        "<tg-emoji emoji-id=\"5776233299424843260\">🌐</tg-emoji><b>Перевод на карту</b>\n\n"
+        f"<tg-emoji emoji-id=\"6041730074376410123\">📥</tg-emoji>Товар: {labels_per.get(period)}-{labels_ver.get(version_type)}\n"
+        f"<tg-emoji emoji-id=\"5904462880941545555\">🪙</tg-emoji>Цена: {price} руб.\n\n"
+        "<tg-emoji emoji-id=\"5904359114531675993\">💰</tg-emoji>Банк: Сбер\n"
+        "<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji>Получатель: Дамир. Ф\n"
+        "<tg-emoji emoji-id=\"5769126056262898415\">👛</tg-emoji>Номер: <code>+79373521278</code>\n\n"
+        "<tg-emoji emoji-id=\"6032924188828767321\">➕</tg-emoji>В комментарии к переводу укажите свой юзернейм.\n"
+        "<tg-emoji emoji-id=\"5944753741512052670\">📷</tg-emoji>После оплаты отправьте боту скриншот оплаты."
+    )
+    
+    await callback_query.message.edit_text(
+        text=payment_details_text, 
+        reply_markup=get_after_card_payment_keyboard(version_type), 
+        parse_mode="HTML"
+    )
 
 # --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА ---
 
