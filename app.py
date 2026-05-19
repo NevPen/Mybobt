@@ -9,7 +9,9 @@ from aiogram.fsm.state import State, StatesGroup
 
 # Токен вашего бота
 BOT_TOKEN = "8690556428:AAHV7WiJMeGKvmsOGYdNodK1BQZcf4S4aJA"
-ADMIN_ID = 7604556074  # Ваш Telegram ID
+
+# Список ID администраторов (Дамир и morgodon)
+ADMIN_IDS = [7604556074, 6100964004]
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -20,7 +22,7 @@ ticket_counter = 0
 
 # Словари для красивого вывода
 LABELS_VER = {"lebro_vip": "Vip", "lebro_lite": "Lite"}
-LABELS_PER = {"1_day": "1 день", "7_days": "7 дней", "30_days": "30 дней", "forever": "Навсегда"}
+LABELS_PER = {"1_day": "1 день", "7_days": "Vip-7д", "30_days": "30 дней", "forever": "Навсегда"}
 
 # --- РАБОТА С БАЗОЙ ДАННЫХ ТОВАРОВ (JSON) ---
 DATA_FILE = "shop_data.json"
@@ -59,7 +61,7 @@ class AdminStates(StatesGroup):
     waiting_for_price = State()     
     waiting_for_vip_link = State()  
     waiting_for_key = State()       
-    waiting_for_decline_reason = State()  # Ожидание причины отказа чека
+    waiting_for_decline_reason = State()  
 
 class PurchaseStates(StatesGroup):
     waiting_for_receipt = State()
@@ -105,7 +107,7 @@ def get_user_periods_keyboard(version_type):
     
     labels = {
         "1_day": "1 день",
-        "7_days": "7 дней",
+        "7_days": "Vip-7д",
         "30_days": "30 дней",
         "forever": "Навсегда"
     }
@@ -159,7 +161,7 @@ def get_admin_periods_keyboard(version, prefix="add"):
             [InlineKeyboardButton(text="7 дней\u200b", callback_data=f"{prefix}_lite_7d")]
         ])
 
-# Кнопки под чеком для админа (Только подтвердить и отказать)
+# Кнопки под чеком для админа
 def get_receipt_admin_buttons(user_id: int, version: str, period: str):
     return InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -187,7 +189,7 @@ async def process_banned(event):
 @dp.message(F.photo | F.document)
 async def handle_receipt(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
-    if message.from_user.id == ADMIN_ID and current_state in [AdminStates.waiting_for_price, AdminStates.waiting_for_vip_link, AdminStates.waiting_for_key]:
+    if message.from_user.id in ADMIN_IDS and current_state in [AdminStates.waiting_for_price, AdminStates.waiting_for_vip_link, AdminStates.waiting_for_key]:
         return
 
     user_data = await state.get_data()
@@ -197,15 +199,11 @@ async def handle_receipt(message: types.Message, state: FSMContext):
     version_title = LABELS_VER.get(chosen_version, chosen_version)
     period_title = LABELS_PER.get(chosen_period, chosen_period)
 
-    # Правильный текст ответа пользователю с переносами строк
-    user_reply_text = (
-        "Чек отправлен на проверку.\n"
-        "Ожидайте подтверждения.\n\n"
-        "<tg-emoji emoji-id=\"5870633910337015697\">✅</tg-emoji> Чек отправлен на проверку. Ожидайте подтверждения."
-    )
+    # Исправлено: Однократный вывод текста сообщения строго с кастомным эмодзи
+    user_reply_text = "<tg-emoji emoji-id=\"5870633910337015697\">✅</tg-emoji> Чек отправлен на проверку. Ожидайте подтверждения."
     await message.reply(user_reply_text, parse_mode="HTML")
     
-    # Сообщение админу
+    # Сообщение админам
     username = f"@{message.from_user.username}" if message.from_user.username else "Нет юзернейма"
     info_text = (
         f"<tg-emoji emoji-id=\"6039573425268201570\">📤</tg-emoji> <b>Получен новый чек на проверку!</b>\n\n"
@@ -217,19 +215,22 @@ async def handle_receipt(message: types.Message, state: FSMContext):
     
     reply_markup = get_receipt_admin_buttons(message.from_user.id, chosen_version, chosen_period)
     
-    if message.photo:
-        await bot.send_photo(chat_id=ADMIN_ID, photo=message.photo[-1].file_id, caption=info_text, reply_markup=reply_markup, parse_mode="HTML")
-    elif message.document:
-        await bot.send_document(chat_id=ADMIN_ID, document=message.document.file_id, caption=info_text, reply_markup=reply_markup, parse_mode="HTML")
+    for admin_id in ADMIN_IDS:
+        try:
+            if message.photo:
+                await bot.send_photo(chat_id=admin_id, photo=message.photo[-1].file_id, caption=info_text, reply_markup=reply_markup, parse_mode="HTML")
+            elif message.document:
+                await bot.send_document(chat_id=admin_id, document=message.document.file_id, caption=info_text, reply_markup=reply_markup, parse_mode="HTML")
+        except:
+            pass
     
     await state.clear()
 
 # --- ЛОГИКА ПОДТВЕРЖДЕНИЯ И ОТКАЗА ЧЕКОВ ---
 
-# Админ нажал "Подтвердить"
 @dp.callback_query(F.data.startswith("rcpt_accept_"))
 async def admin_accept_receipt(callback_query: types.CallbackQuery):
-    if callback_query.from_user.id != ADMIN_ID: return
+    if callback_query.from_user.id not in ADMIN_IDS: return
     await callback_query.answer()
     
     data_parts = callback_query.data.split("_")
@@ -250,18 +251,18 @@ async def admin_accept_receipt(callback_query: types.CallbackQuery):
         await callback_query.message.reply("❌ Ошибка! В базе закончились ключи для этого товара. Пополните базу ключей.")
         return
 
-    # Забираем ключ из базы
     user_key = keys_list.pop(0)
     save_shop_data(current_data)
 
     version_title = LABELS_VER.get(version_type, version_type)
     period_title = LABELS_PER.get(period, period)
 
+    # Исправлено: все лишние эмодзи убраны из текста выдачи
     success_text = (
-        f"<tg-emoji emoji-id=\"6028315147754278596\">🙂</tg-emoji> Ваш чек оплаты был подтверждён.\n"
+        f"Ваш чек оплаты был подтверждён.\n"
         f"Спасибо за покупку <b>Lebro {version_title} ({period_title})</b>\n\n"
-        f"🔑 <b>Ключ:</b> <code>{user_key}</code>\n"
-        f"🌐 <b>Приват:</b> {vip_link}"
+        f"Ключ: {user_key}\n"
+        f"Приват: {vip_link}"
     )
     
     try:
@@ -270,10 +271,9 @@ async def admin_accept_receipt(callback_query: types.CallbackQuery):
     except Exception as e:
         await callback_query.message.reply(f"❌ Не удалось отправить сообщение пользователю: {e}")
 
-# Админ нажал "Отказать"
 @dp.callback_query(F.data.startswith("rcpt_decline_"))
 async def admin_decline_receipt(callback_query: types.CallbackQuery, state: FSMContext):
-    if callback_query.from_user.id != ADMIN_ID: return
+    if callback_query.from_user.id not in ADMIN_IDS: return
     await callback_query.answer()
     
     data_parts = callback_query.data.split("_")
@@ -284,10 +284,9 @@ async def admin_decline_receipt(callback_query: types.CallbackQuery, state: FSMC
     
     await callback_query.message.reply("📝 Напишите причину отклонения чека:")
 
-# Админ написал причину отказа
 @dp.message(AdminStates.waiting_for_decline_reason)
 async def admin_reason_received(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
+    if message.from_user.id not in ADMIN_IDS: return
     
     state_data = await state.get_data()
     target_user_id = state_data.get("decline_user_id")
@@ -304,7 +303,8 @@ async def admin_reason_received(message: types.Message, state: FSMContext):
         await message.answer("🔴 Чек отклонен, причина отправлена пользователю.")
         
         try:
-            await bot.edit_message_caption(chat_id=ADMIN_ID, message_id=decline_msg_id, caption=f"🔴 <b>Чек отклонен.</b>\nПричина: {reason}", reply_markup=None)
+            for admin_id in ADMIN_IDS:
+                await bot.edit_message_caption(chat_id=admin_id, message_id=decline_msg_id, caption=f"🔴 <b>Чек отклонен.</b>\nПричина: {reason}", reply_markup=None)
         except:
             pass
     except Exception as e:
@@ -316,7 +316,7 @@ async def admin_reason_received(message: types.Message, state: FSMContext):
 
 @dp.message(Command("boom"))
 async def admin_panel_cmd(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
+    if message.from_user.id not in ADMIN_IDS: return
     await state.clear()
     await message.answer("Панель управления магазином:", reply_markup=get_admin_main_keyboard())
 
@@ -381,10 +381,9 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     count = len(keys_list)
     
     labels_ver = {"lebro_vip": "Vip", "lebro_lite": "Lite"}
-    labels_per = {"1_day": "1D", "7_days": "7D", "30_days": "30D", "forever": "Навсегда"}
     
     text_details = (
-        f"<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji>Выбран товар - <b>Lebro Cheat ({labels_per.get(period)}-{labels_ver.get(version_type)})</b>\n\n"
+        f"<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji>Выбран товар - <b>Lebro Cheat ({LABELS_PER.get(period)}-{labels_ver.get(version_type)})</b>\n\n"
         f"<tg-emoji emoji-id=\"6039348811363520645\">📂</tg-emoji>Товара в наличии - <code>{count}</code>\n"
         f"<tg-emoji emoji-id=\"5904462880941545555\">🪙</tg-emoji>Цена - <code>{price} руб</code>\n\n"
         "Для оплаты воспользуйтесь кнопками ниже<tg-emoji emoji-id=\"5963087934696459905\">⬇️</tg-emoji>"
@@ -416,11 +415,10 @@ async def process_card_payment_details(callback_query: types.CallbackQuery, stat
     price = item_data.get("price", "0")
     
     labels_ver = {"lebro_vip": "Vip", "lebro_lite": "Lite"}
-    labels_per = {"1_day": "1D", "7_days": "7D", "30_days": "30D", "forever": "Навсегда"}
     
     payment_details_text = (
         "<tg-emoji emoji-id=\"5776233299424843260\">🌐</tg-emoji><b>Перевод на карту</b>\n\n"
-        f"<tg-emoji emoji-id=\"6041730074376410123\">📥</tg-emoji>Товар: {labels_per.get(period)}-{labels_ver.get(version_type)}\n"
+        f"<tg-emoji emoji-id=\"6041730074376410123\">📥</tg-emoji>Товар: {LABELS_PER.get(period)}-{labels_ver.get(version_type)}\n"
         f"<tg-emoji emoji-id=\"5904462880941545555\">🪙</tg-emoji>Цена: {price} руб\n\n"
         "<tg-emoji emoji-id=\"5904359114531675993\">💰</tg-emoji>Банк: Сбер\n"
         "<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji>Получатель: Дамир. Ф\n"
@@ -437,7 +435,7 @@ async def process_card_payment_details(callback_query: types.CallbackQuery, stat
 # --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА ---
 @dp.callback_query(lambda c: c.data in ['adm_choose_vip', 'adm_choose_lite'])
 async def admin_select_version(callback_query: types.CallbackQuery):
-    if callback_query.from_user.id != ADMIN_ID: return
+    if callback_query.from_user.id not in ADMIN_IDS: return
     await callback_query.answer()
     try: callback_query.message.delete()
     except: pass
@@ -452,7 +450,7 @@ ADMIN_CALLBACK_MAP = {
 
 @dp.callback_query(lambda c: c.data in ADMIN_CALLBACK_MAP.keys())
 async def admin_select_period(callback_query: types.CallbackQuery, state: FSMContext):
-    if callback_query.from_user.id != ADMIN_ID: return
+    if callback_query.from_user.id not in ADMIN_IDS: return
     await callback_query.answer()
     try: await callback_query.message.delete()
     except: pass
@@ -463,21 +461,21 @@ async def admin_select_period(callback_query: types.CallbackQuery, state: FSMCon
 
 @dp.message(AdminStates.waiting_for_price)
 async def admin_price_received(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
+    if message.from_user.id not in ADMIN_IDS: return
     await state.update_data(item_price=message.text)
     await state.set_state(AdminStates.waiting_for_vip_link)
     await message.reply("ссылка вип канал:")
 
 @dp.message(AdminStates.waiting_for_vip_link)
 async def admin_vip_link_received(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
+    if message.from_user.id not in ADMIN_IDS: return
     await state.update_data(item_vip_link=message.text)
     await state.set_state(AdminStates.waiting_for_key)
     await message.reply("напишите ключ:")
 
 @dp.message(AdminStates.waiting_for_key)
 async def admin_key_received(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
+    if message.from_user.id not in ADMIN_IDS: return
     state_data = await state.get_data()
     version_type = state_data.get("target_version")
     period = state_data.get("target_period")
@@ -498,7 +496,7 @@ async def admin_key_received(message: types.Message, state: FSMContext):
 # --- СИСТЕМА УДАЛЕНИЯ ТОВАРОВ (КЛЮЧЕЙ) ---
 @dp.callback_query(lambda c: c.data == 'adm_delete_main')
 async def admin_delete_main_menu(callback_query: types.CallbackQuery):
-    if callback_query.from_user.id != ADMIN_ID: return
+    if callback_query.from_user.id not in ADMIN_IDS: return
     await callback_query.answer()
     try: await callback_query.message.delete()
     except: pass
@@ -510,7 +508,7 @@ async def admin_delete_main_menu(callback_query: types.CallbackQuery):
 
 @dp.callback_query(lambda c: c.data in ['del_ver_vip', 'del_ver_lite'])
 async def admin_delete_select_period(callback_query: types.CallbackQuery):
-    if callback_query.from_user.id != ADMIN_ID: return
+    if callback_query.from_user.id not in ADMIN_IDS: return
     await callback_query.answer()
     try: await callback_query.message.delete()
     except: pass
@@ -525,7 +523,7 @@ ADMIN_DEL_CALLBACK_MAP = {
 
 @dp.callback_query(lambda c: c.data in ADMIN_DEL_CALLBACK_MAP.keys())
 async def admin_list_keys_for_deletion(callback_query: types.CallbackQuery):
-    if callback_query.from_user.id != ADMIN_ID: return
+    if callback_query.from_user.id not in ADMIN_IDS: return
     await callback_query.answer()
     try: await callback_query.message.delete()
     except: pass
@@ -545,7 +543,7 @@ async def admin_list_keys_for_deletion(callback_query: types.CallbackQuery):
 
 @dp.callback_query(lambda c: c.data.startswith('confirm_del_'))
 async def admin_execute_deletion(callback_query: types.CallbackQuery):
-    if callback_query.from_user.id != ADMIN_ID: return
+    if callback_query.from_user.id not in ADMIN_IDS: return
     await callback_query.answer()
     data_parts = callback_query.data.replace("confirm_del_", "").split("_")
     
@@ -631,8 +629,9 @@ async def ticket_topic_received(message: types.Message, state: FSMContext):
         f"<tg-emoji emoji-id=\"6030833407339008632\">💬</tg-emoji> <b>Текст обращения:</b>\n"
         f"<i>{message.text}</i>"
     )
-    try: await bot.send_message(chat_id=ADMIN_ID, text=admin_text, reply_markup=None, parse_mode="HTML")
-    except: pass
+    for admin_id in ADMIN_IDS:
+        try: await bot.send_message(chat_id=admin_id, text=admin_text, reply_markup=None, parse_mode="HTML")
+        except: pass
     await state.clear()
 
 @dp.callback_query(lambda c: c.data == 'main')
