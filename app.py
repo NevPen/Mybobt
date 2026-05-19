@@ -1,3 +1,4 @@
+
 import asyncio
 import os
 import json
@@ -262,11 +263,11 @@ async def admin_accept_receipt(callback_query: types.CallbackQuery):
     version_title = LABELS_VER.get(version_type, version_type)
     period_title = LABELS_PER.get(period, period)
 
-    # ИЗМЕНЕН ТЕКСТ ПОДТВЕРЖДЕНИЯ НА ТВОЙ ВАРИАНТ
+    # Новый формат выдачи с кнопками Приват и Отзыв
     success_text = (
         f"<tg-emoji emoji-id=\"6041720006973067267\">👍</tg-emoji>Ваш чек оплаты был подтверждён.\n"
         f"Спасибо за покупку <b>Lebro ({period_title}-{version_title})</b>\n\n"
-        f"Ключ: —- <code>{user_key}</code>"
+        f"<b>Ключ:</b> <code>{user_key}</code>"
     )
     
     success_kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -321,7 +322,7 @@ async def admin_reason_received(message: types.Message, state: FSMContext):
         
     await state.clear()
 
-# --- СИСТЕМА ОТЗЫВОВ ---
+# --- СИСТЕМА ОТЗЫВОВ (ПЕРЕСЫЛАЕТ СООБЩЕНИЕ) ---
 @dp.callback_query(F.data.startswith("leave_review_"))
 async def start_review_process(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.answer()
@@ -332,7 +333,6 @@ async def start_review_process(callback_query: types.CallbackQuery, state: FSMCo
     await state.update_data(review_product=f"Lebro ({p_title}-{v_title})")
     await state.set_state(ReviewStates.waiting_for_review)
     
-    # ИЗМЕНЕН ТЕКСТ ПРОСЬБЫ НА ТВОЙ ВАРИАНТ
     await callback_query.message.answer("<tg-emoji emoji-id=\"6028205772117118673\">⬆️</tg-emoji>Пожалуйста, напишите ваш отзыв одним сообщением.")
 
 @dp.message(ReviewStates.waiting_for_review)
@@ -342,30 +342,26 @@ async def process_user_review(message: types.Message, state: FSMContext):
     
     username = f"@{message.from_user.username}" if message.from_user.username else message.from_user.full_name
     
-    review_text = (
-        f"💬 <b>Новый отзыв от клиента!</b>\n"
+    # Формируем подпись для пересланного сообщения
+    forward_caption = (
         f"📦 <b>Товар:</b> {product_name}\n"
-        f"👤 <b>Автор:</b> {username}\n\n"
-        f"<b>Текст отзыва:</b>\n"
+        f"👤 <b>Отзыв от:</b> {username}"
     )
-    
-    if message.text:
-        review_text += f"<i>{message.text}</i>"
-    elif message.caption:
-        review_text += f"<i>{message.caption}</i>"
-    else:
-        review_text += "<i>[Без текста, только медиафайл]</i>"
 
     try:
-        # Отправляем в Telegram Канал отзывов
-        if message.photo:
-            await bot.send_photo(chat_id=REVIEWS_CHANNEL_ID, photo=message.photo[-1].file_id, caption=review_text, parse_mode="HTML")
-        elif message.document:
-            await bot.send_document(chat_id=REVIEWS_CHANNEL_ID, document=message.document.file_id, caption=review_text, parse_mode="HTML")
-        else:
-            await bot.send_message(chat_id=REVIEWS_CHANNEL_ID, text=review_text, parse_mode="HTML")
+        # Пересылаем оригинальное сообщение пользователя в канал отзывов
+        await bot.forward_message(
+            chat_id=REVIEWS_CHANNEL_ID,
+            from_chat_id=message.chat.id,
+            message_id=message.message_id
+        )
+        # Отправляем подпись отдельным сообщением сразу после пересланного
+        await bot.send_message(
+            chat_id=REVIEWS_CHANNEL_ID, 
+            text=forward_caption, 
+            parse_mode="HTML"
+        )
             
-        # ИЗМЕНЕН ТЕКСТ БЛАГОДАРНОСТИ НА ТВОЙ ВАРИАНТ
         await message.answer("<tg-emoji emoji-id=\"6043847274210005137\">😝</tg-emoji>Спасибо большое за ваш отзыв", reply_markup=get_main_button())
     except Exception as e:
         await message.answer("❌ Не удалось отправить отзыв в канал. Возможно, бот не является там администратором.")
@@ -486,7 +482,7 @@ async def process_card_payment_details(callback_query: types.CallbackQuery, stat
         "<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji> Получатель: Дамир. Ф\n"
         "<tg-emoji emoji-id=\"5769126056262898415\">👛</tg-emoji> Номер: <code>+79373521278</code>\n\n"
         "<tg-emoji emoji-id=\"6032924188828767321\">➕</tg-emoji> В комментарии к переводу укажите свой юзернейм.\n"
-        "<tg-emoji emoji-id=\"5944753741512052670\">📷</tg-emoji> After payment, send the bot a payment screenshot."
+        "<tg-emoji emoji-id=\"5944753741512052670\">📷</tg-emoji> После оплаты отправьте боту скриншот оплаты."
     )
     
     try:
