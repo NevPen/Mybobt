@@ -6,6 +6,7 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LinkPreviewOptions, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.exceptions import TelegramBadRequest
 
 # Токен вашего бота
 BOT_TOKEN = "8690556428:AAHV7WiJMeGKvmsOGYdNodK1BQZcf4S4aJA"
@@ -19,13 +20,13 @@ ADMIN_IDS = [7604556074, 6100964004]
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Хранилище блокировок в памяти (в продакшене лучше использовать БД)
+# Хранилище блокировок в памяти
 banned_users = {}
 ticket_counter = 0
 
 # Словари для красивого вывода в нужном формате
-LABELS_VER = {"lebro_vip": "VIP", "lebro_lite": "LITE"}
-LABELS_PER = {"1_day": "1D", "7_days": "7D", "30_days": "30D", "forever": "FOREVER"}
+LABELS_VER = {"lebro_vip": "vip", "lebro_lite": "lite"}
+LABELS_PER = {"1_day": "1d", "7_days": "7d", "30_days": "30d", "forever": "forever"}
 
 # --- РАБОТА С БАЗОЙ ДАННЫХ ТОВАРОВ (JSON) ---
 DATA_FILE = "shop_data.json"
@@ -56,15 +57,15 @@ def save_shop_data(data):
 
 # --- СОСТОЯНИЯ (FSM) ---
 class SupportStates(StatesGroup):
-    waiting_for_topic = State()        # Ожидание темы тикета от пользователя
-    waiting_for_admin_reply = State()  # Ожидание ответа админа на тикет
-    waiting_for_ban_reason = State()   # Ожидание причины бана
+    waiting_for_topic = State()        
+    waiting_for_admin_reply = State()  
+    waiting_for_ban_reason = State()   
 
 class AdminStates(StatesGroup):
-    waiting_for_price = State()     # Ожидание цены товара
-    waiting_for_vip_link = State()  # Ожидание ссылки на вип канал
-    waiting_for_key = State()       # Ожидание ввода ключа
-    waiting_for_decline_reason = State()  # Ожидание причины отклонения чека
+    waiting_for_price = State()     
+    waiting_for_vip_link = State()  
+    waiting_for_key = State()       
+    waiting_for_decline_reason = State()  
 
 class PurchaseStates(StatesGroup):
     waiting_for_receipt = State()
@@ -80,30 +81,30 @@ START_TEXT = (
 
 def get_buttons():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Магазин", callback_data="shop", icon_custom_emoji_id="5920332557466997677")],
-        [InlineKeyboardButton(text="Профиль", callback_data="profile", icon_custom_emoji_id="6035084557378654059")],
-        [InlineKeyboardButton(text="Поддержка", callback_data="support", icon_custom_emoji_id="6039422865189638057")],
-        [InlineKeyboardButton(text="Правила", callback_data="rules", icon_custom_emoji_id="6028435952299413210")]
+        [InlineKeyboardButton(text="Магазин\u200b", callback_data="shop", icon_custom_emoji_id="5920332557466997677")],
+        [InlineKeyboardButton(text="Профиль\u200b", callback_data="profile", icon_custom_emoji_id="6035084557378654059")],
+        [InlineKeyboardButton(text="Поддержка\u200b", callback_data="support", icon_custom_emoji_id="6039422865189638057")],
+        [InlineKeyboardButton(text="Правила\u200b", callback_data="rules", icon_custom_emoji_id="6028435952299413210")]
     ])
 
 def get_main_button():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Главная", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
+        [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
 def get_shop_categories():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Lebro Cheat", callback_data="prod_lebro", icon_custom_emoji_id="5886285355279193209")],
-        [InlineKeyboardButton(text="Главная", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
+        [InlineKeyboardButton(text="Lebro Cheat\u200b", callback_data="prod_lebro", icon_custom_emoji_id="5886285355279193209")],
+        [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
 def get_lebro_versions():
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="Lite", callback_data="ver_lebro_lite", icon_custom_emoji_id="5893057118545646106"),
-            InlineKeyboardButton(text="Vip", callback_data="ver_lebro_vip", icon_custom_emoji_id="5893236738372932548")
+            InlineKeyboardButton(text="Lite\u200b", callback_data="ver_lebro_lite", icon_custom_emoji_id="5893057118545646106"),
+            InlineKeyboardButton(text="Vip\u200b", callback_data="ver_lebro_vip", icon_custom_emoji_id="5893236738372932548")
         ],
-        [InlineKeyboardButton(text="Главная", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
+        [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
 def get_user_periods_keyboard(version_type):
@@ -111,50 +112,60 @@ def get_user_periods_keyboard(version_type):
     version_items = current_data.get(version_type, {})
     keyboard_structure = []
     
+    labels = {
+        "1_day": "1 день",
+        "7_days": "Vip-7д",
+        "30_days": "30 дней",
+        "forever": "Навсегда"
+    }
+    
     for period, item_data in version_items.items():
         keys_list = item_data.get("keys", [])
-        if len(keys_list) > 0:  
-            button_text = f"{LABELS_PER.get(period, period)}"
+        count = len(keys_list)
+        
+        if count > 0:  
+            button_text = f"{labels[period]}\u200b"
             keyboard_structure.append([InlineKeyboardButton(
                 text=button_text, 
                 callback_data=f"buy_{version_type}_{period}",
                 icon_custom_emoji_id="5836907383292436018"
             )])
             
-    keyboard_structure.append([InlineKeyboardButton(text="Главная", callback_data="main", icon_custom_emoji_id="5938537205847822613")])
+    keyboard_structure.append([InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")])
     return InlineKeyboardMarkup(inline_keyboard=keyboard_structure)
 
 def get_payment_keyboard(version_type, period):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Перевод на карту", callback_data=f"pay_card_{version_type}_{period}", icon_custom_emoji_id="5769126056262898415")],
+        [InlineKeyboardButton(text="Перевод на карту\u200b", callback_data=f"pay_card_{version_type}_{period}", icon_custom_emoji_id="5769126056262898415")],
         [InlineKeyboardButton(text="Telegram Stars", url="https://t.me/morgodon", icon_custom_emoji_id="6028338546736107668")],
-        [InlineKeyboardButton(text="Назад", callback_data=f"ver_{version_type}", icon_custom_emoji_id="6039519841256214245")]
+        [InlineKeyboardButton(text="Назад\u200b", callback_data=f"ver_{version_type}", icon_custom_emoji_id="6039519841256214245")]
     ])
 
 def get_after_card_payment_keyboard(version_type, period):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Назад", callback_data=f"buy_{version_type}_{period}", icon_custom_emoji_id="6039519841256214245")]
+        [InlineKeyboardButton(text="Назад\u200b", callback_data=f"buy_{version_type}_{period}", icon_custom_emoji_id="6039519841256214245")]
     ])
 
+# КЛАВИАТУРЫ АДМИН-ПАНЕЛИ
 def get_admin_main_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Добавить VIP", callback_data="adm_choose_vip", icon_custom_emoji_id="5465224395346091444")],
-        [InlineKeyboardButton(text="Добавить LITE", callback_data="adm_choose_lite", icon_custom_emoji_id="5465224395346091444")],
-        [InlineKeyboardButton(text="Удалить товар", callback_data="adm_delete_main", icon_custom_emoji_id="5458348731385012571")]
+        [InlineKeyboardButton(text="➕ Добавить VIP\u200b", callback_data="adm_choose_vip")],
+        [InlineKeyboardButton(text="➕ Добавить LITE\u200b", callback_data="adm_choose_lite")],
+        [InlineKeyboardButton(text="❌ Удалить товар\u200b", callback_data="adm_delete_main")]
     ])
 
 def get_admin_periods_keyboard(version, prefix="add"):
     if version == "vip" or version == "lebro_vip":
         return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="1 день", callback_data=f"{prefix}_vip_1_day")],
-            [InlineKeyboardButton(text="7 дней", callback_data=f"{prefix}_vip_7_days")],
-            [InlineKeyboardButton(text="30 дней", callback_data=f"{prefix}_vip_30_days")],
-            [InlineKeyboardButton(text="Навсегда", callback_data=f"{prefix}_vip_forever")]
+            [InlineKeyboardButton(text="1 день\u200b", callback_data=f"{prefix}_vip_1d")],
+            [InlineKeyboardButton(text="7 дней\u200b", callback_data=f"{prefix}_vip_7d")],
+            [InlineKeyboardButton(text="30 дней\u200b", callback_data=f"{prefix}_vip_30d")],
+            [InlineKeyboardButton(text="Навсегда\u200b", callback_data=f"{prefix}_vip_forever")]
         ])
     else:
         return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="1 день", callback_data=f"{prefix}_lite_1_day")],
-            [InlineKeyboardButton(text="7 дней", callback_data=f"{prefix}_lite_7_days")]
+            [InlineKeyboardButton(text="1 день\u200b", callback_data=f"{prefix}_lite_1d")],
+            [InlineKeyboardButton(text="7 дней\u200b", callback_data=f"{prefix}_lite_7d")]
         ])
 
 def get_receipt_admin_buttons(user_id: int, version: str, period: str):
@@ -221,7 +232,7 @@ async def handle_receipt(message: types.Message, state: FSMContext):
     
     await state.clear()
 
-# --- ВЫДАЧА ТОВАРА ---
+# --- ЛОГИКА ПОДТВЕРЖДЕНИЯ И ОТКАЗА ЧЕКОВ ---
 @dp.callback_query(F.data.startswith("rcpt_accept_"))
 async def admin_accept_receipt(callback_query: types.CallbackQuery):
     if callback_query.from_user.id not in ADMIN_IDS: return
@@ -239,7 +250,7 @@ async def admin_accept_receipt(callback_query: types.CallbackQuery):
     current_data = load_shop_data()
     item_data = current_data.get(version_type, {}).get(period, {})
     keys_list = item_data.get("keys", [])
-    vip_link = item_data.get("vip_link", "")
+    vip_link = item_data.get("vip_link", "Ссылка отсутствует")
 
     if not keys_list:
         await callback_query.message.reply("❌ Ошибка! В базе закончились ключи.")
@@ -252,24 +263,19 @@ async def admin_accept_receipt(callback_query: types.CallbackQuery):
     period_title = LABELS_PER.get(period, period)
 
     success_text = (
-        f"<tg-emoji emoji-id=\"6041720006973067267\">👍</tg-emoji>Ваш чек оплаты был подтверждён.\n"
+        f"<tg-emoji emoji-id=\"6028315147754278596\">🙂</tg-emoji> Ваш чек оплаты был подтверждён.\n"
         f"Спасибо за покупку <b>Lebro ({period_title}-{version_title})</b>\n\n"
-        f"Ключ: —- <code>{user_key}</code>"
+        f"<b>Ключ:</b> <code>{user_key}</code>"
     )
     
-    if not vip_link or not vip_link.startswith("http"):
-        vip_url = "https://t.me/morgodon"
-    else:
-        vip_url = vip_link
-
     success_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Приват", url=vip_url)],
+        [InlineKeyboardButton(text="Приват", url=vip_link)],
         [InlineKeyboardButton(text="Написать отзыв", callback_data=f"leave_review_{period_title}_{version_title}")]
     ])
     
     try:
         await bot.send_message(chat_id=target_user_id, text=success_text, reply_markup=success_kb, parse_mode="HTML")
-        await callback_query.message.edit_caption(caption=callback_query.message.caption + "\n\n🟢 <b>Чек успешно подтвержден!</b>", reply_markup=None, parse_mode="HTML")
+        await callback_query.message.edit_caption(caption=callback_query.message.caption + "\n\n🟢 <b>Чек успешно подтвержден! Ключ выдан.</b>", reply_markup=None, parse_mode="HTML")
     except Exception as e:
         await callback_query.message.reply(f"❌ Не удалось отправить сообщение пользователю: {e}")
 
@@ -303,6 +309,7 @@ async def admin_reason_received(message: types.Message, state: FSMContext):
     try:
         await bot.send_message(chat_id=target_user_id, text=decline_text, parse_mode="HTML")
         await message.answer("🔴 Чек отклонен, причина отправлена пользователю.")
+        
         try:
             for admin_id in ADMIN_IDS:
                 await bot.edit_message_caption(chat_id=admin_id, message_id=decline_msg_id, caption=f"🔴 <b>Чек отклонен.</b>\nПричина: {reason}", reply_markup=None)
@@ -321,132 +328,59 @@ async def start_review_process(callback_query: types.CallbackQuery, state: FSMCo
     p_title = data_parts[0]
     v_title = data_parts[1]
     
-    await state.update_data(review_product=f"{p_title}-{v_title}")
+    await state.update_data(review_product=f"Lebro ({p_title}-{v_title})")
     await state.set_state(ReviewStates.waiting_for_review)
     
-    await callback_query.message.answer("<tg-emoji emoji-id=\"6028205772117118673\">⬆️</tg-emoji>Пожалуйста, напишите ваш отзыв одним сообщением.")
+    await callback_query.message.answer("📝 Пожалуйста, напишите ваш отзыв одним сообщением (вы можете прикрепить скриншот):")
 
 @dp.message(ReviewStates.waiting_for_review)
 async def process_user_review(message: types.Message, state: FSMContext):
     state_data = await state.get_data()
-    product_title = state_data.get("review_product", "7D-VIP")
+    product_name = state_data.get("review_product", "Lebro")
     
-    header_text = (
-        f"Товар: <b>Lebro ({product_title})</b>\n"
-        f"Отзыв —"
+    username = f"@{message.from_user.username}" if message.from_user.username else message.from_user.full_name
+    
+    review_text = (
+        f"💬 <b>Новый отзыв от клиента!</b>\n"
+        f"📦 <b>Товар:</b> {product_name}\n"
+        f"👤 <b>Автор:</b> {username}\n\n"
+        f"<b>Текст отзыва:</b>\n"
     )
     
+    if message.text:
+        review_text += f"<i>{message.text}</i>"
+    elif message.caption:
+        review_text += f"<i>{message.caption}</i>"
+    else:
+        review_text += "<i>[Без текста, только медиафайл]</i>"
+
     try:
-        await bot.send_message(chat_id=REVIEWS_CHANNEL_ID, text=header_text, parse_mode="HTML")
-        await bot.forward_message(
-            chat_id=REVIEWS_CHANNEL_ID,
-            from_chat_id=message.chat.id,
-            message_id=message.message_id
-        )
-        await message.answer("<tg-emoji emoji-id=\"6043847274210005137\">😝</tg-emoji>Спасибо большое за ваш отзыв", reply_markup=get_main_button(), parse_mode="HTML")
+        if message.photo:
+            await bot.send_photo(chat_id=REVIEWS_CHANNEL_ID, photo=message.photo[-1].file_id, caption=review_text, parse_mode="HTML")
+        elif message.document:
+            await bot.send_document(chat_id=REVIEWS_CHANNEL_ID, document=message.document.file_id, caption=review_text, parse_mode="HTML")
+        else:
+            await bot.send_message(chat_id=REVIEWS_CHANNEL_ID, text=review_text, parse_mode="HTML")
+            
+        await message.answer("❤️ Спасибо большое за ваш отзыв! Он опубликован в нашем канале.", reply_markup=get_main_button())
     except Exception as e:
-        await message.answer("❌ Не удалось отправить отзыв в канал. Проверьте права бота.")
+        await message.answer("❌ Не удалось отправить отзыв в канал. Возможно, бот не является там администратором.")
         print(f"Ошибка отзывов: {e}")
         
     await state.clear()
 
-# --- АДМИН ПАНЕЛЬ КОМАНДЫ ---
+# --- ОСТАЛЬНАЯ ЛОГИКА БОТА ---
 @dp.message(Command("boom"))
 async def admin_panel_cmd(message: types.Message, state: FSMContext):
     if message.from_user.id not in ADMIN_IDS: return
     await state.clear()
     await message.answer("Панель управления магазином:", reply_markup=get_admin_main_keyboard())
 
-@dp.message(Command("ban"))
-async def admin_ban_cmd(message: types.Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS: return
-    args = message.text.split()
-    if len(args) < 2:
-        await message.reply("Использование: /ban {user_id}")
-        return
-    try:
-        target_id = int(args[1])
-        await state.update_data(ban_target_id=target_id)
-        await state.set_state(SupportStates.waiting_for_ban_reason)
-        await message.reply("Введите причину блокировки:")
-    except ValueError:
-        await message.reply("Неверный ID пользователя.")
-
-@dp.message(SupportStates.waiting_for_ban_reason)
-async def admin_ban_reason_recv(message: types.Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS: return
-    s_data = await state.get_data()
-    target_id = s_data.get("ban_target_id")
-    reason = message.text
-    banned_users[target_id] = reason
-    await message.answer(f"Пользователь <code>{target_id}</code> успешно заблокирован.", parse_mode="HTML")
-    try:
-        await bot.send_message(chat_id=target_id, text=f"🔴 Вы были заблокированы администратором.\nПричина: {reason}")
-    except:
-        pass
-    await state.clear()
-
-@dp.message(Command("unban"))
-async def admin_unban_cmd(message: types.Message):
-    if message.from_user.id not in ADMIN_IDS: return
-    args = message.text.split()
-    if len(args) < 2:
-        await message.reply("Использование: /unban {user_id}")
-        return
-    try:
-        target_id = int(args[1])
-        if target_id in banned_users:
-            del banned_users[target_id]
-            await message.reply(f"Пользователь <code>{target_id}</code> разблокирован.", parse_mode="HTML")
-            try:
-                await bot.send_message(chat_id=target_id, text="🟢 Вы были разблокированы администратором.")
-            except:
-                pass
-        else:
-            await message.reply("Пользователь не найден в списке заблокированных.")
-    except ValueError:
-        await message.reply("Неверный ID.")
-
-@dp.message(Command("reply"))
-async def admin_reply_ticket_cmd(message: types.Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS: return
-    args = message.text.split()
-    if len(args) < 2:
-        await message.reply("Использование: /reply {user_id}")
-        return
-    try:
-        target_id = int(args[1])
-        await state.update_data(ticket_target_user_id=target_id)
-        await state.set_state(SupportStates.waiting_for_admin_reply)
-        await message.reply(f"Введите ответ для пользователя (ID: {target_id}):")
-    except ValueError:
-        await message.reply("Неверный ID.")
-
-@dp.message(SupportStates.waiting_for_admin_reply)
-async def admin_reply_text_recv(message: types.Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS: return
-    s_data = await state.get_data()
-    target_id = s_data.get("ticket_target_user_id")
-    reply_text = message.text
-    
-    text_to_user = (
-        f"<tg-emoji emoji-id=\"6039614175917903752\">✏️</tg-emoji> <b>Получен ответ от тех.поддержки!</b>\n\n"
-        f"💬 <i>{reply_text}</i>"
-    )
-    try:
-        await bot.send_message(chat_id=target_id, text=text_to_user, parse_mode="HTML")
-        await message.answer("Ответ успешно доставлен пользователю.")
-    except Exception as e:
-        await message.answer(f"❌ Ошибка отправки: {e}")
-    await state.clear()
-
-# --- СТАНДАРТНЫЕ КОМАНДЫ ПОЛЬЗОВАТЕЛЯ ---
 @dp.message(Command("start"))
 async def start(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
 
-# --- ОБРАБОТКА CALLBACK КНОПОК ---
 @dp.callback_query(lambda c: c.data == 'shop')
 async def process_shop(callback_query: types.CallbackQuery):
     await callback_query.answer()  
@@ -481,7 +415,6 @@ async def user_select_version(callback_query: types.CallbackQuery):
         text = "<b>Выберите период подписки:</b>"
         await callback_query.message.answer(text, reply_markup=get_user_periods_keyboard(version_type), parse_mode="HTML")
 
-# --- ПРОСМОТР ДЕТАЛЕЙ ТОВАРА И ОПЛАТА КАРТОЙ ---
 @dp.callback_query(lambda c: c.data.startswith('buy_'))
 async def user_view_product_details(callback_query: types.CallbackQuery):
     await callback_query.answer()
@@ -508,9 +441,9 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     
     text_details = (
         f"<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji>Выбран товар - <b>Lebro ({p_title}-{v_title})</b>\n\n"
-        f"<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji>Товара в наличии - <code>{count}</code>\n"
-        f"<tg-emoji emoji-id=\"5769126056262898415\">💰</tg-emoji>Цена - <code>{price} руб</code>\n\n"
-        "Для оплаты воспользуйтесь кнопками ниже <tg-emoji emoji-id=\"6039802767931871481\">👇</tg-emoji>"
+        f"<tg-emoji emoji-id=\"6039348811363520645\">📂</tg-emoji>Товара в наличии - <code>{count}</code>\n"
+        f"<tg-emoji emoji-id=\"5904462880941545555\">🪙</tg-emoji>Цена - <code>{price} руб</code>\n\n"
+        "Для оплаты воспользуйтесь кнопками ниже<tg-emoji emoji-id=\"5963087934696459905\">⬇️</tg-emoji>"
     )
     
     if os.path.exists("banner.jpg"):
@@ -542,20 +475,27 @@ async def process_card_payment_details(callback_query: types.CallbackQuery, stat
     p_title = LABELS_PER.get(period, period)
     
     payment_details_text = (
-        "<tg-emoji emoji-id=\"5769126056262898415\">💳</tg-emoji> <b>Перевод на карту</b>\n\n"
-        f"<tg-emoji emoji-id=\"6039630677182254664\">📦</tg-emoji> Товар: {p_title}-{v_title}\n"
-        f"<tg-emoji emoji-id=\"5769126056262898415\">💰</tg-emoji> Цена: {price} руб\n\n"
-        "<tg-emoji emoji-id=\"5769126056262898415\">💳</tg-emoji> Банк: Сбер\n"
+        "<tg-emoji emoji-id=\"5776233299424843260\">🌐</tg-emoji> <b>Перевод на карту</b>\n\n"
+        f"<tg-emoji emoji-id=\"6041730074376410123\">📥</tg-emoji> Товар: Lebro ({p_title}-{v_title})\n"
+        f"<tg-emoji emoji-id=\"5904462880941545555\">🪙</tg-emoji> Цена: {price} руб\n\n"
+        "<tg-emoji emoji-id=\"5904359114531675993\">💰</tg-emoji> Банк: Сбер\n"
         "<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji> Получатель: Дамир. Ф\n"
-        "<tg-emoji emoji-id=\"5818968032747198744\">👛</tg-emoji> Номер: <code>+79373521278</code>\n\n"
-        "<tg-emoji emoji-id=\"6039422865189638057\">💬</tg-emoji> В комментарии к переводу укажите свой юзернейм.\n"
-        "<tg-emoji emoji-id=\"6039573425268201570\">📷</tg-emoji> После оплаты отправьте боту скриншот оплаты."
+        "<tg-emoji emoji-id=\"5769126056262898415\">👛</tg-emoji> Номер: <code>+79373521278</code>\n\n"
+        "<tg-emoji emoji-id=\"6032924188828767321\">➕</tg-emoji> В комментарии к переводу укажите свой юзернейм.\n"
+        "<tg-emoji emoji-id=\"5944753741512052670\">📷</tg-emoji> После оплаты отправьте боту скриншот оплаты."
     )
     
-    try:
-         await callback_query.message.edit_caption(caption=payment_details_text, reply_markup=get_after_card_payment_keyboard(version_type, period), parse_mode="HTML")
-    except Exception:
-         await callback_query.message.edit_text(text=payment_details_text, reply_markup=get_after_card_payment_keyboard(version_type, period), parse_mode="HTML")
+    # ИСПРАВЛЕННАЯ ЛОГИКА: Сначала проверяем, есть ли текст, чтобы отредактировать caption или text без падений
+    if callback_query.message.photo or callback_query.message.document:
+        try:
+            await callback_query.message.edit_caption(caption=payment_details_text, reply_markup=get_after_card_payment_keyboard(version_type, period), parse_mode="HTML")
+        except TelegramBadRequest:
+            pass
+    else:
+        try:
+            await callback_query.message.edit_text(text=payment_details_text, reply_markup=get_after_card_payment_keyboard(version_type, period), parse_mode="HTML")
+        except TelegramBadRequest:
+            pass
 
 # --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА ---
 @dp.callback_query(lambda c: c.data in ['adm_choose_vip', 'adm_choose_lite'])
@@ -568,9 +508,9 @@ async def admin_select_version(callback_query: types.CallbackQuery):
     await callback_query.message.answer(f"Выберите период для настройки версии {version.upper()}:", reply_markup=get_admin_periods_keyboard(version, prefix="add"))
 
 ADMIN_CALLBACK_MAP = {
-    "add_vip_1_day": ("lebro_vip", "1_day"), "add_vip_7_days": ("lebro_vip", "7_days"),
-    "add_vip_30_days": ("lebro_vip", "30_days"), "add_vip_forever": ("lebro_vip", "forever"),
-    "add_lite_1_day": ("lebro_lite", "1_day"), "add_lite_7_days": ("lebro_lite", "7_days")
+    "add_vip_1d": ("lebro_vip", "1_day"), "add_vip_7d": ("lebro_vip", "7_days"),
+    "add_vip_30d": ("lebro_vip", "30_days"), "add_vip_forever": ("lebro_vip", "forever"),
+    "add_lite_1d": ("lebro_lite", "1_day"), "add_lite_7d": ("lebro_lite", "7_days")
 }
 
 @dp.callback_query(lambda c: c.data in ADMIN_CALLBACK_MAP.keys())
@@ -618,7 +558,7 @@ async def admin_key_received(message: types.Message, state: FSMContext):
         await message.answer("❌ Произошла ошибка внутренней структуры категорий.")
     await state.clear()
 
-# --- СИСТЕМА УДАЛЕНИЯ ТОВАРОВ ---
+# --- СИСТЕМА УДАЛЕНИЯ ТОВАРОВ (КЛЮЧЕЙ) ---
 @dp.callback_query(lambda c: c.data == 'adm_delete_main')
 async def admin_delete_main_menu(callback_query: types.CallbackQuery):
     if callback_query.from_user.id not in ADMIN_IDS: return
@@ -641,9 +581,9 @@ async def admin_delete_select_period(callback_query: types.CallbackQuery):
     await callback_query.message.answer(f"Выберите период для удаления ключей версии {version.upper()}:", reply_markup=get_admin_periods_keyboard(version, prefix="del"))
 
 ADMIN_DEL_CALLBACK_MAP = {
-    "del_vip_1_day": ("lebro_vip", "1_day"), "del_vip_7_days": ("lebro_vip", "7_days"),
-    "del_vip_30_days": ("lebro_vip", "30_days"), "del_vip_forever": ("lebro_vip", "forever"),
-    "del_lite_1_day": ("lebro_lite", "1_day"), "del_lite_7_days": ("lebro_lite", "7_days")
+    "del_vip_1d": ("lebro_vip", "1_day"), "del_vip_7d": ("lebro_vip", "7_days"),
+    "del_vip_30d": ("lebro_vip", "30_days"), "del_vip_forever": ("lebro_vip", "forever"),
+    "del_lite_1d": ("lebro_lite", "1_day"), "del_lite_7d": ("lebro_lite", "7_days")
 }
 
 @dp.callback_query(lambda c: c.data in ADMIN_DEL_CALLBACK_MAP.keys())
@@ -674,7 +614,7 @@ async def admin_execute_deletion(callback_query: types.CallbackQuery):
     
     if "vip" in data_parts[1]:
         version_type = f"{data_parts[0]}_{data_parts[1]}"
-        period = f"{data_parts[2]}_{data_parts[3]}"
+        period = f"{data_parts[2]}_{data_parts[3]}" if data_parts[2] in ["1", "7", "30"] else data_parts[2]
         idx = int(data_parts[-1])
     else:
         version_type = f"{data_parts[0]}_{data_parts[1]}"
