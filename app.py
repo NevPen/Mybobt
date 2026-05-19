@@ -10,6 +10,9 @@ from aiogram.fsm.state import State, StatesGroup
 # Токен вашего бота
 BOT_TOKEN = "8690556428:AAHV7WiJMeGKvmsOGYdNodK1BQZcf4S4aJA"
 
+# ID канала для отзывов (Обязательно замени на ID своего канала, должен начинаться с -100)
+REVIEWS_CHANNEL_ID = -1002345678901  
+
 # Список ID администраторов (Дамир и morgodon)
 ADMIN_IDS = [7604556074, 6100964004]
 
@@ -65,6 +68,9 @@ class AdminStates(StatesGroup):
 
 class PurchaseStates(StatesGroup):
     waiting_for_receipt = State()
+
+class ReviewStates(StatesGroup):
+    waiting_for_review = State()
 
 # --- ТЕКСТА И КЛАВИАТУРЫ ---
 START_TEXT = (
@@ -188,6 +194,9 @@ async def process_banned(event):
 @dp.message(F.photo | F.document)
 async def handle_receipt(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
+    # Игнорируем, если админ сейчас настраивает товар или пользователь пишет отзыв
+    if current_state in [AdminStates.waiting_for_price, AdminStates.waiting_for_vip_link, AdminStates.waiting_for_key, ReviewStates.waiting_for_review]:
+        return
     if message.from_user.id in ADMIN_IDS and current_state in [AdminStates.waiting_for_price, AdminStates.waiting_for_vip_link, AdminStates.waiting_for_key]:
         return
 
@@ -253,15 +262,20 @@ async def admin_accept_receipt(callback_query: types.CallbackQuery):
     version_title = LABELS_VER.get(version_type, version_type)
     period_title = LABELS_PER.get(period, period)
 
+    # ИСПРАВЛЕНО ТУТ: Новый формат выдачи с кнопками Приват и Отзыв
     success_text = (
-        f"Ваш чек оплаты был подтверждён.\n"
+        f"<tg-emoji emoji-id=\"6028315147754278596\">🙂</tg-emoji> Ваш чек оплаты был подтверждён.\n"
         f"Спасибо за покупку <b>Lebro ({period_title}-{version_title})</b>\n\n"
-        f"Ключ: {user_key}\n"
-        f"Приват: {vip_link}"
+        f"<b>Ключ:</b> <code>{user_key}</code>"
     )
     
+    success_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Приват", url=vip_link)],
+        [InlineKeyboardButton(text="Написать отзыв", callback_data=f"leave_review_{period_title}_{version_title}")]
+    ])
+    
     try:
-        await bot.send_message(chat_id=target_user_id, text=success_text, parse_mode="HTML")
+        await bot.send_message(chat_id=target_user_id, text=success_text, reply_markup=success_kb, parse_mode="HTML")
         await callback_query.message.edit_caption(caption=callback_query.message.caption + "\n\n🟢 <b>Чек успешно подтвержден! Ключ выдан.</b>", reply_markup=None, parse_mode="HTML")
     except Exception as e:
         await callback_query.message.reply(f"❌ Не удалось отправить сообщение пользователю: {e}")
@@ -304,6 +318,56 @@ async def admin_reason_received(message: types.Message, state: FSMContext):
             pass
     except Exception as e:
         await message.answer(f"❌ Не удалось уведомить пользователя: {e}")
+        
+    await state.clear()
+
+# --- СИСТЕМА ОТЗЫВОВ ---
+@dp.callback_query(F.data.startswith("leave_review_"))
+async def start_review_process(callback_query: types.CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+    data_parts = callback_query.data.replace("leave_review_", "").split("_")
+    p_title = data_parts[0]
+    v_title = data_parts[1]
+    
+    await state.update_data(review_product=f"Lebro ({p_title}-{v_title})")
+    await state.set_state(ReviewStates.waiting_for_review)
+    
+    await callback_query.message.answer("📝 Пожалуйста, напишите ваш отзыв одним сообщением (вы можете прикрепить скриншот):")
+
+@dp.message(ReviewStates.waiting_for_review)
+async def process_user_review(message: types.Message, state: FSMContext):
+    state_data = await state.get_data()
+    product_name = state_data.get("review_product", "Lebro")
+    
+    username = f"@{message.from_user.username}" if message.from_user.username else message.from_user.full_name
+    
+    review_text = (
+        f"💬 <b>Новый отзыв от клиента!</b>\n"
+        f"📦 <b>Товар:</b> {product_name}\n"
+        f"👤 <b>Автор:</b> {username}\n\n"
+        f"<b>Текст отзыва:</b>\n"
+    )
+    
+    if message.text:
+        review_text += f"<i>{message.text}</i>"
+    elif message.caption:
+        review_text += f"<i>{message.caption}</i>"
+    else:
+        review_text += "<i>[Без текста, только медиафайл]</i>"
+
+    try:
+        # Отправляем в Telegram Канал отзывов
+        if message.photo:
+            await bot.send_photo(chat_id=REVIEWS_CHANNEL_ID, photo=message.photo[-1].file_id, caption=review_text, parse_mode="HTML")
+        elif message.document:
+            await bot.send_document(chat_id=REVIEWS_CHANNEL_ID, document=message.document.file_id, caption=review_text, parse_mode="HTML")
+        else:
+            await bot.send_message(chat_id=REVIEWS_CHANNEL_ID, text=review_text, parse_mode="HTML")
+            
+        await message.answer("❤️ Спасибо большое за ваш отзыв! Он опубликован в нашем канале.", reply_markup=get_main_button())
+    except Exception as e:
+        await message.answer("❌ Не удалось отправить отзыв в канал. Возможно, бот не является там администратором.")
+        print(f"Ошибка отзывов: {e}")
         
     await state.clear()
 
@@ -412,7 +476,6 @@ async def process_card_payment_details(callback_query: types.CallbackQuery, stat
     v_title = LABELS_VER.get(version_type, version_type)
     p_title = LABELS_PER.get(period, period)
     
-    # ТУТ ВСЕ ОШИБКИ HTML ИСПРАВЛЕНЫ, ТЕГИ ЗАКРЫВАЮТСЯ КОРРЕКТНО
     payment_details_text = (
         "<tg-emoji emoji-id=\"5776233299424843260\">🌐</tg-emoji> <b>Перевод на карту</b>\n\n"
         f"<tg-emoji emoji-id=\"6041730074376410123\">📥</tg-emoji> Товар: Lebro ({p_title}-{v_title})\n"
