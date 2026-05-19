@@ -124,7 +124,6 @@ def get_payment_keyboard(version_type, period):
         [InlineKeyboardButton(text="Назад\u200b", callback_data=f"ver_{version_type}", icon_custom_emoji_id="6039519841256214245")]
     ])
 
-# ИСПРАВЛЕНО: Удалена кнопка Telegram Stars под реквизитами
 def get_after_card_payment_keyboard(version_type, period):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Назад\u200b", callback_data=f"buy_{version_type}_{period}", icon_custom_emoji_id="6039519841256214245")]
@@ -175,30 +174,18 @@ async def process_banned(event):
     elif isinstance(event, types.CallbackQuery):
         await event.answer("Доступ ограничен.", show_alert=True)
 
-# --- АДМИН-КОМАНДА /BOOM ---
-@dp.message(Command("boom"))
-async def admin_panel_cmd(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
-    await state.clear()
-    await message.answer("Панель управления магазином:", reply_markup=get_admin_main_keyboard())
-
-# --- КОМАНДА /START ---
-@dp.message(Command("start"))
-async def start(message: types.Message, state: FSMContext):
-    await state.clear()
-    await message.answer(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
-
-# --- ОБРАБОТКА ПРИСЛАННЫХ ЧЕКОВ (ФОТО / ДОКУМЕНТЫ) ---
+# --- ИСПРАВЛЕНО: ГЛОБАЛЬНЫЙ ПЕРЕХВАТЧИК ЧЕКОВ (ВЫШЕ ВСЕХ ДРУГИХ ХЭНДЛЕРОВ) ---
 @dp.message(F.photo | F.document)
-async def handle_receipt(message: types.Message):
-    # Если это админ отправляет файлы в процессе настройки, не перехватываем
-    if message.from_user.id == ADMIN_ID:
+async def handle_receipt(message: types.Message, state: FSMContext):
+    # Если файлы шлет админ, выполняющий настройку товаров, пропускаем мимо хэндлера
+    current_state = await state.get_state()
+    if message.from_user.id == ADMIN_ID and current_state in [AdminStates.waiting_for_price, AdminStates.waiting_for_vip_link, AdminStates.waiting_for_key]:
         return
 
-    # Ответ пользователю
+    # Ответ пользователю, приславшему чек
     await message.reply("⏳ Чек отправлен на проверку. Ожидайте подтверждения.")
     
-    # Пересылка чека админу с информацией о покупателе
+    # Пересылка чека админу магазина
     username = f"@{message.from_user.username}" if message.from_user.username else "Нет юзернейма"
     info_text = (
         f"🧾 <b>Получен новый чек на проверку!</b>\n\n"
@@ -223,6 +210,19 @@ async def handle_receipt(message: types.Message):
             reply_markup=get_admin_inline_buttons(message.from_user.id),
             parse_mode="HTML"
         )
+
+# --- АДМИН-КОМАНДА /BOOM ---
+@dp.message(Command("boom"))
+async def admin_panel_cmd(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID: return
+    await state.clear()
+    await message.answer("Панель управления магазином:", reply_markup=get_admin_main_keyboard())
+
+# --- КОМАНДА /START ---
+@dp.message(Command("start"))
+async def start(message: types.Message, state: FSMContext):
+    await state.clear()
+    await message.answer(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
 
 # --- ЛОГИКА ВЗАИМОДЕЙСТВИЯ С МАГАЗИНОМ ---
 
@@ -310,7 +310,7 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     else:
         await callback_query.message.answer(text_details, reply_markup=get_payment_keyboard(version_type, period), parse_mode="HTML")
 
-# НАЖАТИЕ НА КНОПКУ «ПЕРЕВОД НА КАРТУ» — ВЫВОД РЕКВИЗИТОВ
+# НАЖАТИЕ НА КНОПКУ «ПЕРЕВОД НА КАРТУ»
 @dp.callback_query(lambda c: c.data.startswith('pay_card_'))
 async def process_card_payment_details(callback_query: types.CallbackQuery):
     await callback_query.answer()
