@@ -10,7 +10,7 @@ from aiogram.fsm.state import State, StatesGroup
 # Токен вашего бота
 BOT_TOKEN = "8690556428:AAHV7WiJMeGKvmsOGYdNodK1BQZcf4S4aJA"
 
-# ID канала для отзывов 
+# ID канала для отзывов (Обязательно замени на ID своего канала, должен начинаться с -100)
 REVIEWS_CHANNEL_ID = -1002345678901  
 
 # Список ID администраторов (Дамир и morgodon)
@@ -19,7 +19,7 @@ ADMIN_IDS = [7604556074, 6100964004]
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Хранилище блокировок в памяти
+# Хранилище блокировок в памяти (в продакшене лучше использовать БД)
 banned_users = {}
 ticket_counter = 0
 
@@ -56,15 +56,15 @@ def save_shop_data(data):
 
 # --- СОСТОЯНИЯ (FSM) ---
 class SupportStates(StatesGroup):
-    waiting_for_topic = State()        
-    waiting_for_admin_reply = State()  
-    waiting_for_ban_reason = State()   
+    waiting_for_topic = State()        # Ожидание темы тикета от пользователя
+    waiting_for_admin_reply = State()  # Ожидание ответа админа на тикет
+    waiting_for_ban_reason = State()   # Ожидание причины бана
 
 class AdminStates(StatesGroup):
-    waiting_for_price = State()     
-    waiting_for_vip_link = State()  
-    waiting_for_key = State()       
-    waiting_for_decline_reason = State()  
+    waiting_for_price = State()     # Ожидание цены товара
+    waiting_for_vip_link = State()  # Ожидание ссылки на вип канал
+    waiting_for_key = State()       # Ожидание ввода ключа
+    waiting_for_decline_reason = State()  # Ожидание причины отклонения чека
 
 class PurchaseStates(StatesGroup):
     waiting_for_receipt = State()
@@ -350,6 +350,213 @@ async def process_user_review(message: types.Message, state: FSMContext):
         
     await state.clear()
 
+# --- АДМИН ПАНЕЛЬ КОМАНДЫ ---
+@dp.message(Command("boom"))
+async def admin_panel_cmd(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS: return
+    await state.clear()
+    await message.answer("Панель управления магазином:", reply_markup=get_admin_main_keyboard())
+
+@dp.message(Command("ban"))
+async def admin_ban_cmd(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS: return
+    args = message.text.split()
+    if len(args) < 2:
+        await message.reply("Использование: /ban {user_id}")
+        return
+    try:
+        target_id = int(args[1])
+        await state.update_data(ban_target_id=target_id)
+        await state.set_state(SupportStates.waiting_for_ban_reason)
+        await message.reply("Введите причину блокировки:")
+    except ValueError:
+        await message.reply("Неверный ID пользователя.")
+
+@dp.message(SupportStates.waiting_for_ban_reason)
+async def admin_ban_reason_recv(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS: return
+    s_data = await state.get_data()
+    target_id = s_data.get("ban_target_id")
+    reason = message.text
+    banned_users[target_id] = reason
+    await message.answer(f"Пользователь <code>{target_id}</code> успешно заблокирован.", parse_mode="HTML")
+    try:
+        await bot.send_message(chat_id=target_id, text=f"🔴 Вы были заблокированы администратором.\nПричина: {reason}")
+    except:
+        pass
+    await state.clear()
+
+@dp.message(Command("unban"))
+async def admin_unban_cmd(message: types.Message):
+    if message.from_user.id not in ADMIN_IDS: return
+    args = message.text.split()
+    if len(args) < 2:
+        await message.reply("Использование: /unban {user_id}")
+        return
+    try:
+        target_id = int(args[1])
+        if target_id in banned_users:
+            del banned_users[target_id]
+            await message.reply(f"Пользователь <code>{target_id}</code> разблокирован.", parse_mode="HTML")
+            try:
+                await bot.send_message(chat_id=target_id, text="🟢 Вы были разблокированы администратором.")
+            except:
+                pass
+        else:
+            await message.reply("Пользователь не найден в списке заблокированных.")
+    except ValueError:
+        await message.reply("Неверный ID.")
+
+@dp.message(Command("reply"))
+async def admin_reply_ticket_cmd(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS: return
+    args = message.text.split()
+    if len(args) < 2:
+        await message.reply("Использование: /reply {user_id}")
+        return
+    try:
+        target_id = int(args[1])
+        await state.update_data(ticket_target_user_id=target_id)
+        await state.set_state(SupportStates.waiting_for_admin_reply)
+        await message.reply(f"Введите ответ для пользователя (ID: {target_id}):")
+    except ValueError:
+        await message.reply("Неверный ID.")
+
+@dp.message(SupportStates.waiting_for_admin_reply)
+async def admin_reply_text_recv(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS: return
+    s_data = await state.get_data()
+    target_id = s_data.get("ticket_target_user_id")
+    reply_text = message.text
+    
+    text_to_user = (
+        f"<tg-emoji emoji-id=\"6039614175917903752\">✏️</tg-emoji> <b>Получен ответ от тех.поддержки!</b>\n\n"
+        f"💬 <i>{reply_text}</i>"
+    )
+    try:
+        await bot.send_message(chat_id=target_id, text=text_to_user, parse_mode="HTML")
+        await message.answer("Ответ успешно доставлен пользователю.")
+    except Exception as e:
+        await message.answer(f"❌ Ошибка отправки: {e}")
+    await state.clear()
+
+# --- СТАНДАРТНЫЕ КОМАНДЫ ПОЛЬЗОВАТЕЛЯ ---
+@dp.message(Command("start"))
+async def start(message: types.Message, state: FSMContext):
+    await state.clear()
+    await message.answer(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
+
+# --- ОБРАБОТКА CALLBACK КНОПОК ---
+@dp.callback_query(lambda c: c.data == 'shop')
+async def process_shop(callback_query: types.CallbackQuery):
+    await callback_query.answer()  
+    try: await callback_query.message.delete()
+    except: pass
+    text = "<tg-emoji emoji-id=\"5870563425628721113\">🛍</tg-emoji> <b>Выберите нужный товар</b>"
+    await callback_query.message.answer(text, reply_markup=get_shop_categories(), parse_mode="HTML")
+
+@dp.callback_query(lambda c: c.data == 'prod_lebro')
+async def process_lebro_cheat(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    try: await callback_query.message.delete()
+    except: pass
+    text = "<b>Выберите версию Lebro Cheat</b>"
+    await callback_query.message.answer(text, reply_markup=get_lebro_versions(), parse_mode="HTML")
+
+@dp.callback_query(lambda c: c.data in ['ver_lebro_lite', 'ver_lebro_vip'])
+async def user_select_version(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    try: await callback_query.message.delete()
+    except: pass
+    version_type = "lebro_lite" if callback_query.data == "ver_lebro_lite" else "lebro_vip"
+    
+    current_data = load_shop_data()
+    version_dict = current_data.get(version_type, {})
+    has_items = any(len(item_data.get("keys", [])) > 0 for item_data in version_dict.values())
+    
+    if not has_items:
+        text = "<tg-emoji emoji-id=\"5920046907782074235\">📝</tg-emoji>Нет в наличии"
+        await callback_query.message.answer(text, reply_markup=get_main_button(), parse_mode="HTML")
+    else:
+        text = "<b>Выберите период подписки:</b>"
+        await callback_query.message.answer(text, reply_markup=get_user_periods_keyboard(version_type), parse_mode="HTML")
+
+# --- ПРОСМОТР ДЕТАЛЕЙ ТОВАРА И ОПЛАТА КАРТОЙ ---
+@dp.callback_query(lambda c: c.data.startswith('buy_'))
+async def user_view_product_details(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    try: await callback_query.message.delete()
+    except: pass
+    
+    data_str = callback_query.data.replace("buy_", "")
+    if data_str.startswith("lebro_vip_"):
+        version_type = "lebro_vip"
+        period = data_str.replace("lebro_vip_", "")
+    else:
+        version_type = "lebro_lite"
+        period = data_str.replace("lebro_lite_", "")
+        
+    current_data = load_shop_data()
+    item_data = current_data.get(version_type, {}).get(period, {})
+    
+    keys_list = item_data.get("keys", [])
+    price = item_data.get("price", "0")
+    count = len(keys_list)
+    
+    v_title = LABELS_VER.get(version_type, version_type)
+    p_title = LABELS_PER.get(period, period)
+    
+    text_details = (
+        f"<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji>Выбран товар - <b>Lebro ({p_title}-{v_title})</b>\n\n"
+        f"<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji>Товара в наличии - <code>{count}</code>\n"
+        f"<tg-emoji emoji-id=\"5769126056262898415\">💰</tg-emoji>Цена - <code>{price} руб</code>\n\n"
+        "Для оплаты воспользуйтесь кнопками ниже <tg-emoji emoji-id=\"6039802767931871481\">👇</tg-emoji>"
+    )
+    
+    if os.path.exists("banner.jpg"):
+        photo = FSInputFile("banner.jpg")
+        await callback_query.message.answer_photo(photo=photo, caption=text_details, reply_markup=get_payment_keyboard(version_type, period), parse_mode="HTML")
+    else:
+        await callback_query.message.answer(text_details, reply_markup=get_payment_keyboard(version_type, period), parse_mode="HTML")
+
+@dp.callback_query(lambda c: c.data.startswith('pay_card_'))
+async def process_card_payment_details(callback_query: types.CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+    
+    data_str = callback_query.data.replace("pay_card_", "")
+    if data_str.startswith("lebro_vip_"):
+        version_type = "lebro_vip"
+        period = data_str.replace("lebro_vip_", "")
+    else:
+        version_type = "lebro_lite"
+        period = data_str.replace("lebro_lite_", "")
+        
+    await state.update_data(pay_version=version_type, pay_period=period)
+    await state.set_state(PurchaseStates.waiting_for_receipt)
+        
+    current_data = load_shop_data()
+    item_data = current_data.get(version_type, {}).get(period, {})
+    price = item_data.get("price", "0")
+    
+    v_title = LABELS_VER.get(version_type, version_type)
+    p_title = LABELS_PER.get(period, period)
+    
+    payment_details_text = (
+        "<tg-emoji emoji-id=\"5769126056262898415\">💳</tg-emoji> <b>Перевод на карту</b>\n\n"
+        f"<tg-emoji emoji-id=\"6039630677182254664\">📦</tg-emoji> Товар: {p_title}-{v_title}\n"
+        f"<tg-emoji emoji-id=\"5769126056262898415\">💰</tg-emoji> Цена: {price} руб\n\n"
+        "<tg-emoji emoji-id=\"5769126056262898415\">💳</tg-emoji> Банк: Сбер\n"
+        "<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji> Получатель: Дамир. Ф\n"
+        "<tg-emoji emoji-id=\"5818968032747198744\">👛</tg-emoji> Номер: <code>+79373521278</code>\n\n"
+        "<tg-emoji emoji-id=\"6039422865189638057\">💬</tg-emoji> В комментарии к переводу укажите свой юзернейм.\n"
+        "<tg-emoji emoji-id=\"6039573425268201570\">📷</tg-emoji> После оплаты отправьте боту скриншот оплаты."
+    )
+    
+    try:
+         await callback_query.message.edit_caption(caption=payment_details_text, reply_markup=get_after_card_payment_keyboard(version_type, period), parse_mode="HTML")
+    except Exception:
+         await callback_query.message.edit_text(text=payment_details_text, reply_markup=get_after_card_payment_keyboard(version_type, period), parse_mode="HTML")
+
 # --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА ---
 @dp.callback_query(lambda c: c.data in ['adm_choose_vip', 'adm_choose_lite'])
 async def admin_select_version(callback_query: types.CallbackQuery):
@@ -559,82 +766,6 @@ async def process_main(callback_query: types.CallbackQuery, state: FSMContext):
     except: pass
     await state.clear()
     await callback_query.message.answer(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
-
-# --- ПРОСМОТР ДЕТАЛЕЙ ТОВАРА И ОПЛАТА КАРТОЙ ---
-@dp.callback_query(lambda c: c.data.startswith('buy_'))
-async def user_view_product_details(callback_query: types.CallbackQuery):
-    await callback_query.answer()
-    try: await callback_query.message.delete()
-    except: pass
-    
-    data_str = callback_query.data.replace("buy_", "")
-    if data_str.startswith("lebro_vip_"):
-        version_type = "lebro_vip"
-        period = data_str.replace("lebro_vip_", "")
-    else:
-        version_type = "lebro_lite"
-        period = data_str.replace("lebro_lite_", "")
-        
-    current_data = load_shop_data()
-    item_data = current_data.get(version_type, {}).get(period, {})
-    
-    keys_list = item_data.get("keys", [])
-    price = item_data.get("price", "0")
-    count = len(keys_list)
-    
-    v_title = LABELS_VER.get(version_type, version_type)
-    p_title = LABELS_PER.get(period, period)
-    
-    text_details = (
-        f"<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji>Выбран товар - <b>Lebro ({p_title}-{v_title})</b>\n\n"
-        f"<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji>Товара в наличии - <code>{count}</code>\n"
-        f"<tg-emoji emoji-id=\"5769126056262898415\">💰</tg-emoji>Цена - <code>{price} руб</code>\n\n"
-        "Для оплаты воспользуйтесь кнопками ниже <tg-emoji emoji-id=\"6039802767931871481\">👇</tg-emoji>"
-    )
-    
-    if os.path.exists("banner.jpg"):
-        photo = FSInputFile("banner.jpg")
-        await callback_query.message.answer_photo(photo=photo, caption=text_details, reply_markup=get_payment_keyboard(version_type, period), parse_mode="HTML")
-    else:
-        await callback_query.message.answer(text_details, reply_markup=get_payment_keyboard(version_type, period), parse_mode="HTML")
-
-@dp.callback_query(lambda c: c.data.startswith('pay_card_'))
-async def process_card_payment_details(callback_query: types.CallbackQuery, state: FSMContext):
-    await callback_query.answer()
-    
-    data_str = callback_query.data.replace("pay_card_", "")
-    if data_str.startswith("lebro_vip_"):
-        version_type = "lebro_vip"
-        period = data_str.replace("lebro_vip_", "")
-    else:
-        version_type = "lebro_lite"
-        period = data_str.replace("lebro_lite_", "")
-        
-    await state.update_data(pay_version=version_type, pay_period=period)
-    await state.set_state(PurchaseStates.waiting_for_receipt)
-        
-    current_data = load_shop_data()
-    item_data = current_data.get(version_type, {}).get(period, {})
-    price = item_data.get("price", "0")
-    
-    v_title = LABELS_VER.get(version_type, version_type)
-    p_title = LABELS_PER.get(period, period)
-    
-    payment_details_text = (
-        "<tg-emoji emoji-id=\"5769126056262898415\">💳</tg-emoji> <b>Перевод на карту</b>\n\n"
-        f"<tg-emoji emoji-id=\"6039630677182254664\">📦</tg-emoji> Товар: {p_title}-{v_title}\n"
-        f"<tg-emoji emoji-id=\"5769126056262898415\">💰</tg-emoji> Цена: {price} руб\n\n"
-        "<tg-emoji emoji-id=\"5769126056262898415\">💳</tg-emoji> Банк: Сбер\n"
-        "<tg-emoji emoji-id=\"6035084557378654059\">👤</tg-emoji> Получатель: Дамир. Ф\n"
-        "<tg-emoji emoji-id=\"5818968032747198744\">👛</tg-emoji> Номер: <code>+79373521278</code>\n\n"
-        "<tg-emoji emoji-id=\"6039422865189638057\">💬</tg-emoji> В комментарии к переводу укажите свой юзернейм.\n"
-        "<tg-emoji emoji-id=\"6039573425268201570\">📷</tg-emoji> После оплаты отправьте боту скриншот оплаты."
-    )
-    
-    try:
-         await callback_query.message.edit_caption(caption=payment_details_text, reply_markup=get_after_card_payment_keyboard(version_type, period), parse_mode="HTML")
-    except Exception:
-         await callback_query.message.edit_text(text=payment_details_text, reply_markup=get_after_card_payment_keyboard(version_type, period), parse_mode="HTML")
 
 async def main():
     print("Бот запущен")
