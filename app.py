@@ -159,7 +159,7 @@ def get_admin_periods_keyboard(version, prefix="add"):
             [InlineKeyboardButton(text="7 дней\u200b", callback_data=f"{prefix}_lite_7d")]
         ])
 
-# Кнопки под чеком для админа (Кнопки "Заблокировать" и "Ответить" убраны)
+# Кнопки под чеком для админа (Только подтвердить и отказать)
 def get_receipt_admin_buttons(user_id: int, version: str, period: str):
     return InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -197,8 +197,13 @@ async def handle_receipt(message: types.Message, state: FSMContext):
     version_title = LABELS_VER.get(chosen_version, chosen_version)
     period_title = LABELS_PER.get(chosen_period, chosen_period)
 
-    # Ответ пользователю
-    await message.reply("<tg-emoji emoji-id=\"5870633910337015697\">✅</tg-emoji> Чек отправлен на проверку. Ожидайте подтверждения.")
+    # Правильный текст ответа пользователю с переносами строк
+    user_reply_text = (
+        "Чек отправлен на проверку.\n"
+        "Ожидайте подтверждения.\n\n"
+        "<tg-emoji emoji-id=\"5870633910337015697\">✅</tg-emoji> Чек отправлен на проверку. Ожидайте подтверждения."
+    )
+    await message.reply(user_reply_text, parse_mode="HTML")
     
     # Сообщение админу
     username = f"@{message.from_user.username}" if message.from_user.username else "Нет юзернейма"
@@ -210,7 +215,6 @@ async def handle_receipt(message: types.Message, state: FSMContext):
         f"📦 <b>Товар:</b> Lebro {version_title} ({period_title})"
     )
     
-    # Передаем клавиатуру только с кнопками "Подтвердить" и "Отказать"
     reply_markup = get_receipt_admin_buttons(message.from_user.id, chosen_version, chosen_period)
     
     if message.photo:
@@ -228,12 +232,10 @@ async def admin_accept_receipt(callback_query: types.CallbackQuery):
     if callback_query.from_user.id != ADMIN_ID: return
     await callback_query.answer()
     
-    # Извлекаем данные: rcpt_accept_{user_id}_{version}_{period}
     data_parts = callback_query.data.split("_")
     target_user_id = int(data_parts[2])
     version_type = f"{data_parts[3]}_{data_parts[4]}"
     
-    # Период может состоять из двух частей (например, 1_day, 30_days)
     if len(data_parts) == 7:
         period = f"{data_parts[5]}_{data_parts[6]}"
     else:
@@ -248,14 +250,13 @@ async def admin_accept_receipt(callback_query: types.CallbackQuery):
         await callback_query.message.reply("❌ Ошибка! В базе закончились ключи для этого товара. Пополните базу ключей.")
         return
 
-    # Забираем первый ключ и удаляем его из базы
+    # Забираем ключ из базы
     user_key = keys_list.pop(0)
     save_shop_data(current_data)
 
     version_title = LABELS_VER.get(version_type, version_type)
     period_title = LABELS_PER.get(period, period)
 
-    # Отправляем сообщение пользователю
     success_text = (
         f"<tg-emoji emoji-id=\"6028315147754278596\">🙂</tg-emoji> Ваш чек оплаты был подтверждён.\n"
         f"Спасибо за покупку <b>Lebro {version_title} ({period_title})</b>\n\n"
@@ -302,7 +303,6 @@ async def admin_reason_received(message: types.Message, state: FSMContext):
         await bot.send_message(chat_id=target_user_id, text=decline_text, parse_mode="HTML")
         await message.answer("🔴 Чек отклонен, причина отправлена пользователю.")
         
-        # Обновляем текст у сообщения с чеком
         try:
             await bot.edit_message_caption(chat_id=ADMIN_ID, message_id=decline_msg_id, caption=f"🔴 <b>Чек отклонен.</b>\nПричина: {reason}", reply_markup=None)
         except:
@@ -633,49 +633,6 @@ async def ticket_topic_received(message: types.Message, state: FSMContext):
     )
     try: await bot.send_message(chat_id=ADMIN_ID, text=admin_text, reply_markup=None, parse_mode="HTML")
     except: pass
-    await state.clear()
-
-@dp.callback_query(lambda c: c.data.startswith('ban_'))
-async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext):
-    if callback_query.from_user.id != ADMIN_ID: return
-    target_user_id = int(callback_query.data.split('_')[1])
-    await state.update_data(ban_user_id=target_user_id)
-    await state.set_state(SupportStates.waiting_for_ban_reason)
-    await callback_query.answer()
-    await callback_query.message.reply("⚙️ Напишите причину блокировки:")
-
-@dp.message(SupportStates.waiting_for_ban_reason)
-async def admin_ban_reason_received(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
-    data = await state.get_data()
-    target_user_id = data.get("ban_user_id")
-    banned_users[target_user_id] = message.text
-    text_ban = f"<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>Вы заблокированы администратором<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji>\n📣Причина: {message.text}"
-    try: await bot.send_message(chat_id=target_user_id, text=text_ban, parse_mode="HTML")
-    except: pass
-    await state.clear()
-
-@dp.callback_query(lambda c: c.data.startswith('reply_'))
-async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMContext):
-    if callback_query.from_user.id != ADMIN_ID: return
-    target_user_id = int(callback_query.data.split('_')[1])
-    await state.update_data(reply_to_user_id=target_user_id)
-    await state.set_state(SupportStates.waiting_for_admin_reply)
-    await callback_query.answer()
-    await callback_query.message.reply("⌨️ Напишите ответ пользователю:")
-
-@dp.message(SupportStates.waiting_for_admin_reply)
-async def admin_send_reply_message(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
-    data = await state.get_data()
-    target_user_id = data.get("reply_to_user_id")
-    reply_text = (
-        f"<tg-emoji emoji-id=\"6021418126061605425\">📞</tg-emoji> Ваш тикет <b>#{ticket_counter}</b> был <b>обработан</b>\n"
-        f"<tg-emoji emoji-id=\"5771851822897566479\">📝</tg-emoji> Ответ: {message.text}\n"
-        f"<tg-emoji emoji-id=\"6021681257232994766\">🔒</tg-emoji> Ваш тикет был <b>автоматически закрыт</b>"
-    )
-    try: await bot.send_message(chat_id=target_user_id, text=reply_text, reply_markup=get_main_button(), parse_mode="HTML")
-    except Exception as e: await message.answer(f"❌ Ошибка отправки: {e}")
     await state.clear()
 
 @dp.callback_query(lambda c: c.data == 'main')
