@@ -261,9 +261,7 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
 
 @dp.callback_query(F.data.startswith('pay_stars_'))
 async def process_pay_stars(callback_query: types.CallbackQuery):
-    # Извлекаем параметры pay_stars_lebro_vip_1_day
     parts = callback_query.data.split('_')
-    # parts: ['pay', 'stars', 'lebro', 'vip', '1', 'day'] или ['pay', 'stars', 'lebro', 'lite', '1', 'day']
     version_type = f"{parts[2]}_{parts[3]}"
     period = "_".join(parts[4:])
     
@@ -271,13 +269,12 @@ async def process_pay_stars(callback_query: types.CallbackQuery):
     item_data = current_data.get(version_type, {}).get(period, {})
     
     try:
-        # Пробуем перевести в число, если там введено число
         price_stars = int(item_data.get("price", "0"))
     except ValueError:
-        price_stars = 1 # Резервное значение, если админ ввел текст вместо цифры
+        price_stars = 1
         
     if price_stars <= 0:
-        price_stars = 1 # Telegram не пропустит счета с 0 звезд
+        price_stars = 1
         
     labels_ver = {"lebro_vip": "Vip", "lebro_lite": "Lite"}
     labels_per = {"1_day": "1 день", "7_days": "7 дней", "30_days": "30 дней", "forever": "Навсегда"}
@@ -286,16 +283,15 @@ async def process_pay_stars(callback_query: types.CallbackQuery):
         chat_id=callback_query.from_user.id,
         title=f"Lebro Cheat {labels_ver.get(version_type, '')}",
         description=f"Подписка на период: {labels_per.get(period, period)}",
-        payload=f"{version_type}:{period}", # Передаем тип и период в скрытый параметр
-        provider_token="", # Для Telegram Stars поле ВСЕГДА должно быть пустым
-        currency="XTR", # Валюта Telegram Stars
+        payload=f"{version_type}:{period}",
+        provider_token="",
+        currency="XTR",
         prices=[LabeledPrice(label="Оплата товара", amount=price_stars)]
     )
     await callback_query.answer()
 
 @dp.pre_checkout_query()
 async def process_pre_checkout(pre_checkout_query: types.PreCheckoutQuery):
-    # Одобряем платеж со стороны бота
     await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
 @dp.message(F.successful_payment)
@@ -309,7 +305,7 @@ async def process_successful_payment(message: types.Message):
     vip_link = item_data.get("vip_link", "")
     
     if keys_list:
-        issued_key = keys_list.pop(0) # Забираем первый ключ из списка
+        issued_key = keys_list.pop(0)
         save_shop_data(current_data)
         
         reply_success = (
@@ -322,12 +318,10 @@ async def process_successful_payment(message: types.Message):
             
         await message.answer(reply_success, reply_markup=get_main_button(), parse_mode="HTML")
     else:
-        # Критическая ситуация, если ключи кончились в момент проведения транзакции
         await message.answer(
             "⚠️ Товар закончился в процессе оплаты. Пожалуйста, напишите в техподдержку, ваш платеж зафиксирован.",
             reply_markup=get_main_button()
         )
-        # Уведомление админу
         await bot.send_message(
             chat_id=ADMIN_ID,
             text=f"🔴 Ошибка! Пользователь {message.from_user.id} оплатил {version_type} {period}, но ключи закончились!"
@@ -508,3 +502,52 @@ async def admin_ban_reason_received(message: types.Message, state: FSMContext):
     )
     try:
         await bot.send_message(chat_id=target_user_id, text=text_ban, parse_mode="HTML")
+    except Exception as e:
+        print(f"Не удалось отправить карточку бана: {e}")
+    await state.clear()
+
+@dp.callback_query(lambda c: c.data.startswith('reply_'))
+async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMContext):
+    if callback_query.from_user.id != ADMIN_ID: return
+    target_user_id = int(callback_query.data.split('_')[1])
+    await state.update_data(reply_to_user_id=target_user_id)
+    await state.set_state(SupportStates.waiting_for_admin_reply)
+    await callback_query.answer()
+    await callback_query.message.reply("<tg-emoji emoji-id=\"6039404727542747508\">⌨️</tg-emoji>Напишите ответ пользователю:", parse_mode="HTML")
+
+@dp.message(SupportStates.waiting_for_admin_reply)
+async def admin_send_reply_message(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID: return
+    data = await state.get_data()
+    target_user_id = data.get("reply_to_user_id")
+    reply_text = (
+        f"<tg-emoji emoji-id=\"6021418126061605425\">📞</tg-emoji> Ваш тикет <b>#{ticket_counter}</b> был <b>обработан</b>\n"
+        f"<tg-emoji emoji-id=\"5771851822897566479\">📝</tg-emoji> Ответ: {message.text}\n"
+        f"<tg-emoji emoji-id=\"6021681257232994766\">🔒</tg-emoji> Ваш тикет был <b>автоматически закрыт</b>"
+    )
+    try:
+        await bot.send_message(chat_id=target_user_id, text=reply_text, reply_markup=get_main_button(), parse_mode="HTML")
+    except Exception as e:
+        await message.answer(f"❌ Ошибка отправки: {e}")
+    await state.clear()
+
+@dp.callback_query(lambda c: c.data == 'main')
+async def process_main(callback_query: types.CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+    try:
+        await callback_query.message.delete()
+    except:
+        pass
+    await state.clear()
+    await callback_query.message.answer(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
+
+# --- СТАРТ БОТА ---
+async def main():
+    print("Бот запущен")
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    async def main_runner():
+        await bot.delete_webhook(drop_pending_updates=True)
+        await main()
+    asyncio.run(main_runner())
