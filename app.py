@@ -119,7 +119,7 @@ def get_user_periods_keyboard(version_type):
 
 def get_payment_keyboard(version_type, period):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Telegram Stars", callback_data=f"pay_stars_{version_type}_{period}")],
+        [InlineKeyboardButton(text="Написать @morgodon", url="https://t.me/morgodon")],
         [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
@@ -256,76 +256,6 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
     )
     
     await callback_query.message.answer(text_details, reply_markup=get_payment_keyboard(version_type, period), parse_mode="HTML")
-
-# --- ИНТЕГРАЦИЯ ТЕЛЕГРАМ СТАРС ---
-
-@dp.callback_query(F.data.startswith('pay_stars_'))
-async def process_pay_stars(callback_query: types.CallbackQuery):
-    parts = callback_query.data.split('_')
-    version_type = f"{parts[2]}_{parts[3]}"
-    period = "_".join(parts[4:])
-    
-    current_data = load_shop_data()
-    item_data = current_data.get(version_type, {}).get(period, {})
-    
-    try:
-        price_stars = int(item_data.get("price", "0"))
-    except ValueError:
-        price_stars = 1
-        
-    if price_stars <= 0:
-        price_stars = 1
-        
-    labels_ver = {"lebro_vip": "Vip", "lebro_lite": "Lite"}
-    labels_per = {"1_day": "1 день", "7_days": "7 дней", "30_days": "30 дней", "forever": "Навсегда"}
-    
-    await bot.send_invoice(
-        chat_id=callback_query.from_user.id,
-        title=f"Lebro Cheat {labels_ver.get(version_type, '')}",
-        description=f"Подписка на период: {labels_per.get(period, period)}",
-        payload=f"{version_type}:{period}",
-        provider_token="",
-        currency="XTR",
-        prices=[LabeledPrice(label="Оплата товара", amount=price_stars)]
-    )
-    await callback_query.answer()
-
-@dp.pre_checkout_query()
-async def process_pre_checkout(pre_checkout_query: types.PreCheckoutQuery):
-    await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
-
-@dp.message(F.successful_payment)
-async def process_successful_payment(message: types.Message):
-    payload = message.successful_payment.invoice_payload
-    version_type, period = payload.split(":")
-    
-    current_data = load_shop_data()
-    item_data = current_data.get(version_type, {}).get(period, {})
-    keys_list = item_data.get("keys", [])
-    vip_link = item_data.get("vip_link", "")
-    
-    if keys_list:
-        issued_key = keys_list.pop(0)
-        save_shop_data(current_data)
-        
-        reply_success = (
-            f"<b>✅ Оплата прошла успешно!</b>\n\n"
-            f"<b>Списано:</b> {message.successful_payment.total_amount} Stars\n"
-            f"<b>Ваш ключ:</b> <code>{issued_key}</code>\n"
-        )
-        if vip_link:
-            reply_success += f"<b>Ссылка на VIP-канал:</b> {vip_link}"
-            
-        await message.answer(reply_success, reply_markup=get_main_button(), parse_mode="HTML")
-    else:
-        await message.answer(
-            "⚠️ Товар закончился в процессе оплаты. Пожалуйста, напишите в техподдержку, ваш платеж зафиксирован.",
-            reply_markup=get_main_button()
-        )
-        await bot.send_message(
-            chat_id=ADMIN_ID,
-            text=f"🔴 Ошибка! Пользователь {message.from_user.id} оплатил {version_type} {period}, но ключи закончились!"
-        )
 
 # --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА ---
 
