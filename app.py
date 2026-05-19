@@ -1,4 +1,3 @@
-
 import asyncio
 import os
 import json
@@ -406,7 +405,7 @@ async def ticket_topic_received(message: types.Message, state: FSMContext):
         print(f"Ошибка уведомления админа: {e}")
     await state.clear()
 
-# ИСПРАВЛЕНО: Правильный срез строки с помощью .split('_')[1] вместо конвертации целого списка
+# ИСПРАВЛЕНО: Теперь id достается корректно через split('_')[1]
 @dp.callback_query(lambda c: c.data.startswith('ban_'))
 async def admin_ban_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
@@ -432,7 +431,7 @@ async def admin_ban_reason_received(message: types.Message, state: FSMContext):
         print(f"Не удалось отправить карточку бана: {e}")
     await state.clear()
 
-# ИСПРАВЛЕНО: Правильный срез строки с помощью .split('_')[1] вместо конвертации целого списка
+# ИСПРАВЛЕНО: Теперь id достается корректно через split('_')[1]
 @dp.callback_query(lambda c: c.data.startswith('reply_'))
 async def admin_reply_start(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
@@ -478,4 +477,3 @@ if __name__ == "__main__":
         await bot.delete_webhook(drop_pending_updates=True)
         await main()
     asyncio.run(main_runner())
-
