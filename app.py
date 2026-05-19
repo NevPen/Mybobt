@@ -3,7 +3,7 @@ import os
 import json
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LinkPreviewOptions, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
@@ -59,23 +59,23 @@ def save_shop_data(data):
 # --- КЛАВИАТУРЫ ПОЛЬЗОВАТЕЛЯ ---
 def get_main_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Магазин", callback_data="shop")],
-        [InlineKeyboardButton(text="Профиль", callback_data="profile")],
-        [InlineKeyboardButton(text="Поддержка", callback_data="support")],
-        [InlineKeyboardButton(text="Правила", callback_data="rules")]
+        [InlineKeyboardButton(text="Магазин", callback_data="shop", icon_custom_emoji_id="5920332557466997677")],
+        [InlineKeyboardButton(text="Профиль", callback_data="profile", icon_custom_emoji_id="6035084557378654059")],
+        [InlineKeyboardButton(text="Поддержка", callback_data="support", icon_custom_emoji_id="6039422865189638057")],
+        [InlineKeyboardButton(text="Правила", callback_data="rules", icon_custom_emoji_id="6028435952299413210")]
     ])
 
 def get_shop_cats_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Lebro Cheat", callback_data="prod_lebro")],
-        [InlineKeyboardButton(text="Главная", callback_data="main")]
+        [InlineKeyboardButton(text="Lebro Cheat", callback_data="prod_lebro", icon_custom_emoji_id="5886285355279193209")],
+        [InlineKeyboardButton(text="Главная", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
 def get_versions_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Lite", callback_data="ver_lebro_lite"),
-         InlineKeyboardButton(text="Vip", callback_data="ver_lebro_vip")],
-        [InlineKeyboardButton(text="Главная", callback_data="main")]
+        [InlineKeyboardButton(text="Lite", callback_data="ver_lebro_lite", icon_custom_emoji_id="5893057118545646106"),
+         InlineKeyboardButton(text="Vip", callback_data="ver_lebro_vip", icon_custom_emoji_id="5893236738372932548")],
+        [InlineKeyboardButton(text="Главная", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
 def get_periods_kb(version_type):
@@ -85,22 +85,23 @@ def get_periods_kb(version_type):
     labels = {"1_day": "1 день", "7_days": "7 дней", "30_days": "30 дней", "forever": "Навсегда"}
     for period, val in items.items():
         if len(val["keys"]) > 0:
-            kb.append([InlineKeyboardButton(text=labels[period], callback_data=f"buy_{version_type}_{period}")])
-    kb.append([InlineKeyboardButton(text="Главная", callback_data="main")])
+            kb.append([InlineKeyboardButton(text=labels[period], callback_data=f"buy_{version_type}_{period}", icon_custom_emoji_id="5836907383292436018")])
+    kb.append([InlineKeyboardButton(text="Главная", callback_data="main", icon_custom_emoji_id="5938537205847822613")])
     return InlineKeyboardMarkup(inline_keyboard=kb)
 
 def get_pay_kb(version_type, period):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Перевод на карту", callback_data=f"pay_card_{version_type}_{period}")],
-        [InlineKeyboardButton(text="Telegram Stars", url="https://t.me/morgodon")],
-        [InlineKeyboardButton(text="Назад", callback_data=f"ver_{version_type}")]
+        [InlineKeyboardButton(text="Перевод на карту", callback_data=f"pay_card_{version_type}_{period}", icon_custom_emoji_id="5769126056262898415")],
+        [InlineKeyboardButton(text="Telegram Stars", url="https://t.me/morgodon", icon_custom_emoji_id="6028338546736107668")],
+        [InlineKeyboardButton(text="Назад", callback_data=f"ver_{version_type}", icon_custom_emoji_id="6039519841256214245")]
     ])
 
 # --- КЛАВИАТУРЫ АДМИНА ---
 def get_admin_main_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ Добавить VIP", callback_data="adm_add_vip")],
-        [InlineKeyboardButton(text="➕ Добавить LITE", callback_data="adm_add_lite")]
+        [InlineKeyboardButton(text="➕ Добавить LITE", callback_data="adm_add_lite")],
+        [InlineKeyboardButton(text="❌ Удалить товар", callback_data="adm_del_main")]
     ])
 
 def get_admin_periods_kb(version, prefix="add"):
@@ -205,8 +206,8 @@ async def call_pay_details(call: types.CallbackQuery):
     )
     
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Telegram Stars", url="https://t.me/morgodon")],
-        [InlineKeyboardButton(text="Назад", callback_data=f"buy_{v_type}_{period}")]
+        [InlineKeyboardButton(text="Telegram Stars", url="https://t.me/morgodon", icon_custom_emoji_id="6028338546736107668")],
+        [InlineKeyboardButton(text="Назад", callback_data=f"buy_{v_type}_{period}", icon_custom_emoji_id="6039519841256214245")]
     ])
     
     await call.message.edit_caption(caption=pay_text, reply_markup=kb, parse_mode="HTML")
@@ -226,7 +227,7 @@ async def call_rules(call: types.CallbackQuery):
     await call.message.edit_text(text, reply_markup=get_back_main_kb(), parse_mode="HTML")
 
 def get_back_main_kb():
-    return InlineKeyboardMarkup(inline_keyboard=[[[InlineKeyboardButton(text="Главная", callback_data="main")]]])
+    return InlineKeyboardMarkup(inline_keyboard=[[[InlineKeyboardButton(text="Главная", callback_data="main")]])
 
 # --- ПОДДЕРЖКА ---
 @dp.callback_query(F.data == "support")
@@ -247,7 +248,7 @@ async def process_support(message: types.Message, state: FSMContext):
     await bot.send_message(ADMIN_ID, f"🆘 <b>Тикет #{ticket_counter}</b>\nОт: {message.from_user.id}\nТекст: {message.text}", reply_markup=adm_kb, parse_mode="HTML")
     await state.clear()
 
-# --- АДМИНСКИЕ ДЕЙСТВИЯ (ДОБАВЛЕНИЕ) ---
+# --- АДМИНСКИЕ ДЕЙСТВИЯ (ДОБАВЛЕНИЕ/УДАЛЕНИЕ) ---
 @dp.callback_query(F.data.startswith("adm_add_"))
 async def adm_select_ver(call: types.CallbackQuery):
     ver = "vip" if "vip" in call.data else "lite"
