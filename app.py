@@ -77,7 +77,7 @@ def get_main_button():
 
 def get_shop_categories():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Telegram Stars", callback_data="prod_lebro")],
+        [InlineKeyboardButton(text="Lebro Cheat\u200b", callback_data="prod_lebro", icon_custom_emoji_id="5886285355279193209")],
         [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
     ])
 
@@ -116,6 +116,12 @@ def get_user_periods_keyboard(version_type):
             
     keyboard_structure.append([InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")])
     return InlineKeyboardMarkup(inline_keyboard=keyboard_structure)
+
+def get_payment_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Telegram Stars", callback_data="pay_stars")],
+        [InlineKeyboardButton(text="Главная\u200b", callback_data="main", icon_custom_emoji_id="5938537205847822613")]
+    ])
 
 # КЛАВИАТУРЫ АДМИН-ПАНЕЛИ
 def get_admin_main_keyboard():
@@ -249,7 +255,11 @@ async def user_view_product_details(callback_query: types.CallbackQuery):
         "Для оплаты воспользуйтесь кнопками ниже"
     )
     
-    await callback_query.message.answer(text_details, reply_markup=get_main_button(), parse_mode="HTML")
+    await callback_query.message.answer(text_details, reply_markup=get_payment_keyboard(), parse_mode="HTML")
+
+@dp.callback_query(lambda c: c.data == 'pay_stars')
+async def process_pay_stars(callback_query: types.CallbackQuery):
+    await callback_query.answer("Оплата через Telegram Stars находится в режиме настройки.", show_alert=True)
 
 # --- СИСТЕМА ДОБАВЛЕНИЯ ТОВАРОВ АДМИНИСТРАТОРА ---
 
