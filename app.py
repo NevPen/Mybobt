@@ -182,18 +182,30 @@ async def start(message: types.Message, state: FSMContext):
 @dp.callback_query(lambda c: c.data == 'shop')
 async def process_shop(callback_query: types.CallbackQuery):
     await callback_query.answer()  
+    try:
+        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню
+    except:
+        pass
     text = "<tg-emoji emoji-id=\"5870563425628721113\">🛍</tg-emoji> <b>Выберите нужный товар</b>"
     await callback_query.message.answer(text, reply_markup=get_shop_categories(), parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data == 'prod_lebro')
 async def process_lebro_cheat(callback_query: types.CallbackQuery):
     await callback_query.answer()
+    try:
+        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню
+    except:
+        pass
     text = "<b>Выберите версию Lebro Cheat</b>"
     await callback_query.message.answer(text, reply_markup=get_lebro_versions(), parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data in ['ver_lebro_lite', 'ver_lebro_vip'])
 async def user_select_version(callback_query: types.CallbackQuery):
     await callback_query.answer()
+    try:
+        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню
+    except:
+        pass
     version_type = "lebro_lite" if callback_query.data == "ver_lebro_lite" else "lebro_vip"
     
     current_data = load_shop_data()
@@ -210,6 +222,10 @@ async def user_select_version(callback_query: types.CallbackQuery):
 @dp.callback_query(lambda c: c.data.startswith('buy_'))
 async def user_buy_product(callback_query: types.CallbackQuery):
     await callback_query.answer()
+    try:
+        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню
+    except:
+        pass
     parts = callback_query.data.split('_')
     
     version_type = f"{parts}_{parts}"  
@@ -233,6 +249,10 @@ async def user_buy_product(callback_query: types.CallbackQuery):
 async def admin_select_version(callback_query: types.CallbackQuery):
     if callback_query.from_user.id != ADMIN_ID: return
     await callback_query.answer()
+    try:
+        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню в админке
+    except:
+        pass
     version = "vip" if callback_query.data == "adm_choose_vip" else "lite"
     await callback_query.message.answer(f"Выберите период для настройки версии {version.upper()}:", reply_markup=get_admin_periods_keyboard(version))
 
@@ -249,12 +269,16 @@ ADMIN_CALLBACK_MAP = {
 async def admin_select_period(callback_query: types.CallbackQuery, state: FSMContext):
     if callback_query.from_user.id != ADMIN_ID: return
     await callback_query.answer()
+    try:
+        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню в админке
+    except:
+        pass
     
     version_type, period = ADMIN_CALLBACK_MAP[callback_query.data]
     await state.update_data(target_version=version_type, target_period=period)
-    
     await state.set_state(AdminStates.waiting_for_price)
-    await callback_query.message.reply("Введите цену товара:")
+    
+    await callback_query.message.answer("Введите цену товара:")
 
 @dp.message(AdminStates.waiting_for_price)
 async def admin_price_received(message: types.Message, state: FSMContext):
@@ -290,6 +314,10 @@ async def admin_key_received(message: types.Message, state: FSMContext):
 @dp.callback_query(lambda c: c.data == 'profile')
 async def process_profile(callback_query: types.CallbackQuery):
     await callback_query.answer()
+    try:
+        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню
+    except:
+        pass
     
     user_id = callback_query.from_user.id
     username = f"@{callback_query.from_user.username}" if callback_query.from_user.username else "Нет"
@@ -305,6 +333,10 @@ async def process_profile(callback_query: types.CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'rules')
 async def process_rules(callback_query: types.CallbackQuery):
     await callback_query.answer()
+    try:
+        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню
+    except:
+        pass
     text = (
         "<tg-emoji emoji-id=\"6032636795387121097\">🛡</tg-emoji> Перед использованием бота, пожалуйста прочтите правила указанные ниже <tg-emoji emoji-id=\"5963087934696459905\">⬇️</tg-emoji>\n\n"
         "<tg-emoji emoji-id=\"6039630677182254664\">📂</tg-emoji> <a href=\"https://telegra.ph\">Пользовательское соглашение</a>\n"
@@ -315,6 +347,10 @@ async def process_rules(callback_query: types.CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'support')
 async def process_support(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.answer()
+    try:
+        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение с меню
+    except:
+        pass
     text = (
         "<tg-emoji emoji-id=\"6021418126061605425\">📞</tg-emoji> <b>Техническая поддержка</b>\n\n"
         "<tg-emoji emoji-id=\"6039450962865688331\">📝</tg-emoji> Введите <b>тему вашего обращения</b>"
@@ -403,10 +439,14 @@ async def admin_send_reply_message(message: types.Message, state: FSMContext):
 @dp.callback_query(lambda c: c.data == 'main')
 async def process_main(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.answer()
+    try:
+        await callback_query.message.delete()  # ИЗМЕНЕНИЕ: удаляем старое сообщение при возврате на главную
+    except:
+        pass
     await state.clear()
     await callback_query.message.answer(START_TEXT, reply_markup=get_buttons(), parse_mode="HTML")
 
-# --- ГЛАВНАЯ ФУНКЦИЯ ДЛЯ ЗАПУСКА БОТА ---
+# --- СТАРТ БОТА ---
 async def main():
     print("Бот запущен")
     await dp.start_polling(bot)
